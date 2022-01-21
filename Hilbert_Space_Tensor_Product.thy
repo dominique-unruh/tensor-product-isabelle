@@ -1,11 +1,11 @@
 theory Hilbert_Space_Tensor_Product
-  imports Complex_Bounded_Operators.Complex_L2 Registers.Misc
+  imports Complex_Bounded_Operators.Complex_L2 Registers.Misc Misc_Tensor_Product
 begin
 
 unbundle cblinfun_notation
 no_notation m_inv ("inv\<index> _" [81] 80)
 
-lemma local_defE: "(\<And>x. x=y \<Longrightarrow> P) \<Longrightarrow> P" by metis
+subsection \<open>Tensor product on \<^typ>\<open>_ ell2\<close>\<close>
 
 lift_definition tensor_ell2 :: \<open>'a ell2 \<Rightarrow> 'b ell2 \<Rightarrow> ('a\<times>'b) ell2\<close> (infixr "\<otimes>\<^sub>s" 70) is
   \<open>\<lambda>\<psi> \<phi> (i,j). \<psi> i * \<phi> j\<close>
@@ -25,18 +25,18 @@ proof -
     by (auto simp add: has_ell2_norm_def case_prod_beta)
 qed
 
-lemma tensor_ell2_add2: \<open>tensor_ell2 a (b + c) = tensor_ell2 a b + tensor_ell2 a c\<close>
-  apply transfer apply (rule ext) apply (auto simp: case_prod_beta)
-  by (meson algebra_simps)
-
 lemma tensor_ell2_add1: \<open>tensor_ell2 (a + b) c = tensor_ell2 a c + tensor_ell2 b c\<close>
   apply transfer apply (rule ext) apply (auto simp: case_prod_beta)
   by (simp add: vector_space_over_itself.scale_left_distrib)
 
-lemma tensor_ell2_scaleC2: \<open>tensor_ell2 a (c *\<^sub>C b) = c *\<^sub>C tensor_ell2 a b\<close>
-  apply transfer apply (rule ext) by (auto simp: case_prod_beta)
+lemma tensor_ell2_add2: \<open>tensor_ell2 a (b + c) = tensor_ell2 a b + tensor_ell2 a c\<close>
+  apply transfer apply (rule ext) apply (auto simp: case_prod_beta)
+  by (meson algebra_simps)
 
 lemma tensor_ell2_scaleC1: \<open>tensor_ell2 (c *\<^sub>C a) b = c *\<^sub>C tensor_ell2 a b\<close>
+  apply transfer apply (rule ext) by (auto simp: case_prod_beta)
+
+lemma tensor_ell2_scaleC2: \<open>tensor_ell2 a (c *\<^sub>C b) = c *\<^sub>C tensor_ell2 a b\<close>
   apply transfer apply (rule ext) by (auto simp: case_prod_beta)
 
 lemma tensor_ell2_inner_prod[simp]: \<open>\<langle>tensor_ell2 a b, tensor_ell2 c d\<rangle> = \<langle>a,c\<rangle> * \<langle>b,d\<rangle>\<close>
@@ -69,20 +69,20 @@ proof (transfer, hypsubst_thin)
     by -
 qed
 
-lemma tensor_ell2_norm: \<open>norm (tensor_ell2 a b) = norm a * norm b\<close>
+lemma tensor_ell2_norm: \<open>norm (a \<otimes>\<^sub>s b) = norm a * norm b\<close>
   by (simp add: norm_eq_sqrt_cinner[where 'a=\<open>(_::type) ell2\<close>] norm_mult real_sqrt_mult)
 
-lemma clinear_tensor_ell21: "clinear (\<lambda>b. tensor_ell2 a b)"
+lemma clinear_tensor_ell21: "clinear (\<lambda>b. a \<otimes>\<^sub>s b)"
   apply (rule clinearI; transfer)
    apply (auto simp: case_prod_beta)
   by (simp add: cond_case_prod_eta algebra_simps)
 
-lemma bounded_clinear_tensor_ell21: "bounded_clinear (\<lambda>b. tensor_ell2 a b)"
+lemma bounded_clinear_tensor_ell21: "bounded_clinear (\<lambda>b. a \<otimes>\<^sub>s b)"
   apply (auto intro!: bounded_clinear.intro clinear_tensor_ell21
       simp: bounded_clinear_axioms_def tensor_ell2_norm)
   using mult.commute order_eq_refl by blast
 
-lemma clinear_tensor_ell22: "clinear (\<lambda>a. tensor_ell2 a b)"
+lemma clinear_tensor_ell22: "clinear (\<lambda>a. a \<otimes>\<^sub>s b)"
   apply (rule clinearI; transfer)
    apply (auto simp: case_prod_beta)
   by (simp add: case_prod_beta' algebra_simps)
@@ -94,91 +94,445 @@ lemma bounded_clinear_tensor_ell22: "bounded_clinear (\<lambda>a. tensor_ell2 a 
 lemma tensor_ell2_ket[simp]: "tensor_ell2 (ket i) (ket j) = ket (i,j)"
   apply transfer by auto
 
+lemma tensor_ell2_0_left[simp]: \<open>0 \<otimes>\<^sub>s x = 0\<close>
+  apply transfer by auto
+
+lemma tensor_ell2_0_right[simp]: \<open>x \<otimes>\<^sub>s 0 = 0\<close>
+  apply transfer by auto
+
+lemma tensor_ell2_sum_left: \<open>(\<Sum>x\<in>X. a x) \<otimes>\<^sub>s b = (\<Sum>x\<in>X. a x \<otimes>\<^sub>s b)\<close>
+  apply (induction X rule:infinite_finite_induct)
+  by (auto simp: tensor_ell2_add1)
+
+lemma tensor_ell2_sum_right: \<open>a \<otimes>\<^sub>s (\<Sum>x\<in>X. b x) = (\<Sum>x\<in>X. a \<otimes>\<^sub>s b x)\<close>
+  apply (induction X rule:infinite_finite_induct)
+  by (auto simp: tensor_ell2_add2)
+
+lemma norm_tensor_ell2: \<open>norm (a \<otimes>\<^sub>s b) = norm a * norm b\<close>
+proof transfer
+  fix a :: \<open>'a \<Rightarrow> complex\<close> and b :: \<open>'b \<Rightarrow> complex\<close>
+  assume \<open>has_ell2_norm a\<close> \<open>has_ell2_norm b\<close>
+  have 1: \<open>(\<lambda>j. (a i * b j)\<^sup>2) abs_summable_on UNIV\<close> for i
+    using \<open>has_ell2_norm b\<close>
+    by (auto simp add: power_mult_distrib norm_mult has_ell2_norm_def
+        intro!: summable_on_cmult_right)
+  have 2: \<open>(\<lambda>i. cmod (\<Sum>\<^sub>\<infinity>j. cmod ((a i * b j)\<^sup>2))) summable_on UNIV\<close>
+    using \<open>has_ell2_norm a\<close>
+    by (auto simp add: power_mult_distrib norm_mult has_ell2_norm_def infsum_cmult_right'
+        intro!: summable_on_cmult_left)
+  have 3: \<open>(\<lambda>p. (a (fst p) * b (snd p))\<^sup>2) abs_summable_on UNIV \<times> UNIV\<close>
+    using 1 2 by (auto intro!: abs_summable_on_Sigma_iff[THEN iffD2] simp flip: UNIV_Times_UNIV)
+
+  have \<open>(ell2_norm (\<lambda>(i, j). a i * b j))\<^sup>2 = (\<Sum>\<^sub>\<infinity>(i,j). (cmod (a i * b j))\<^sup>2)\<close>
+    by (simp add: ell2_norm_def case_prod_unfold infsum_nonneg)
+  also have \<open>\<dots> = (\<Sum>\<^sub>\<infinity>(i,j). cmod ((a i * b j)\<^sup>2))\<close>
+    by (simp add: norm_power)
+  also have \<open>\<dots> = (\<Sum>\<^sub>\<infinity>i. \<Sum>\<^sub>\<infinity>j. cmod ((a i * b j)\<^sup>2))\<close>
+    using 3 by (simp add: infsum_Sigma'_banach case_prod_unfold)
+  also have \<open>\<dots> = (\<Sum>\<^sub>\<infinity>i. \<Sum>\<^sub>\<infinity>j. (cmod (a i))\<^sup>2 * (cmod (b j))\<^sup>2)\<close>
+    by (simp add: norm_power power_mult_distrib norm_mult)
+  also have \<open>\<dots> = (\<Sum>\<^sub>\<infinity>i. (cmod (a i))\<^sup>2 * (\<Sum>\<^sub>\<infinity>j. (cmod (b j))\<^sup>2))\<close>
+    by (simp add: infsum_cmult_right')
+  also have \<open>\<dots> = (\<Sum>\<^sub>\<infinity>i. (cmod (a i))\<^sup>2) * (\<Sum>\<^sub>\<infinity>j. (cmod (b j))\<^sup>2)\<close>
+    by (simp add: infsum_cmult_left')
+  also have \<open>\<dots> = (ell2_norm a)\<^sup>2 * (ell2_norm b)\<^sup>2\<close>
+    by (metis (mono_tags, lifting) ell2_norm_def ell2_norm_geq0 real_sqrt_ge_0_iff real_sqrt_pow2_iff)
+  finally show \<open>ell2_norm (\<lambda>(i, j). a i * b j) = ell2_norm a * ell2_norm b\<close>
+    by (metis ell2_norm_geq0 mult_nonneg_nonneg power2_eq_imp_eq power_mult_distrib)
+qed
+
+definition assoc_ell2 :: \<open>(('a\<times>'b)\<times>'c) ell2 \<Rightarrow>\<^sub>C\<^sub>L ('a\<times>('b\<times>'c)) ell2\<close> where
+  \<open>assoc_ell2 = classical_operator (Some o (\<lambda>((a,b),c). (a,(b,c))))\<close>
+
+lemma unitary_assoc_ell2[simp]: \<open>unitary assoc_ell2\<close>
+  unfolding assoc_ell2_def
+  apply (rule unitary_classical_operator)
+  apply (rule o_bij[of \<open>(\<lambda>(a,(b,c)). ((a,b),c))\<close>])
+  by auto
+
+lemma assoc_ell2_tensor: \<open>assoc_ell2 *\<^sub>V tensor_ell2 (tensor_ell2 a b) c = tensor_ell2 a (tensor_ell2 b c)\<close>
+(*   apply (rule clinear_equal_ket[THEN fun_cong, where x=a])
+    apply (simp add: cblinfun.add_right clinearI tensor_ell2_add1 tensor_ell2_scaleC1)
+   apply (simp add: clinear_tensor_ell22)
+  apply (rule clinear_equal_ket[THEN fun_cong, where x=b])
+    apply (simp add: cblinfun.add_right clinearI tensor_ell2_add1 tensor_ell2_add2 tensor_ell2_scaleC1 tensor_ell2_scaleC2)
+   apply (simp add: clinearI tensor_ell2_add1 tensor_ell2_add2 tensor_ell2_scaleC1 tensor_ell2_scaleC2)
+  apply (rule clinear_equal_ket[THEN fun_cong, where x=c])
+    apply (simp add: cblinfun.add_right clinearI tensor_ell2_add2 tensor_ell2_scaleC2)
+   apply (simp add: clinearI tensor_ell2_add2 tensor_ell2_scaleC2)
+  unfolding assoc_ell2.rep_eq
+  apply transfer
+  by auto *)
+  sorry
+
+lemma assoc_ell2'_tensor: \<open>assoc_ell2* *\<^sub>V tensor_ell2 a (tensor_ell2 b c) = tensor_ell2 (tensor_ell2 a b) c\<close>
+  by (metis (no_types, opaque_lifting) assoc_ell2_tensor cblinfun_apply_cblinfun_compose id_cblinfun.rep_eq unitaryD1 unitary_assoc_ell2)
+
+definition swap_ell2 :: \<open>('a\<times>'b) ell2 \<Rightarrow>\<^sub>C\<^sub>L ('b\<times>'a) ell2\<close> where
+  \<open>swap_ell2 = classical_operator (Some o prod.swap)\<close>
+
+lemma unitary_swap_ell2[simp]: \<open>unitary swap_ell2\<close>
+  unfolding swap_ell2_def
+  apply (rule unitary_classical_operator)
+  by auto
+
+lemma swap_ell2_tensor[simp]: \<open>swap_ell2 *\<^sub>V tensor_ell2 a b = tensor_ell2 b a\<close>
+(*   apply (rule clinear_equal_ket[THEN fun_cong, where x=a])
+    apply (simp add: cblinfun.add_right clinearI tensor_ell2_add1 tensor_ell2_scaleC1)
+   apply (simp add: clinear_tensor_ell21)
+  apply (rule clinear_equal_ket[THEN fun_cong, where x=b])
+    apply (simp add: cblinfun.add_right clinearI tensor_ell2_add1 tensor_ell2_add2 tensor_ell2_scaleC1 tensor_ell2_scaleC2)
+   apply (simp add: clinearI tensor_ell2_add1 tensor_ell2_add2 tensor_ell2_scaleC1 tensor_ell2_scaleC2)
+  unfolding swap_ell2.rep_eq
+  apply transfer
+  by auto *)
+  sorry
+
+lemma inv_prod_swap[simp]: \<open>inv prod.swap = prod.swap\<close>
+  by (simp add: inv_unique_comp)
+
+lemma adjoint_swap_ell2[simp]: \<open>swap_ell2* = swap_ell2\<close>
+  by (simp add: swap_ell2_def inv_map_total)
+
+lemma tensor_ell2_extensionality:
+  assumes "(\<And>s t. a *\<^sub>V (s \<otimes>\<^sub>s t) = b *\<^sub>V (s \<otimes>\<^sub>s t))"
+  shows "a = b"
+  apply (rule equal_ket, case_tac x, hypsubst_thin)
+  by (simp add: assms flip: tensor_ell2_ket)
+
+lemma tensor_ell2_nonzero: \<open>a \<otimes>\<^sub>s b \<noteq> 0\<close> if \<open>a \<noteq> 0\<close> and \<open>b \<noteq> 0\<close>
+  apply (use that in transfer)
+  apply auto
+  by (metis mult_eq_0_iff old.prod.case)
+
+lemma swap_ell2_selfinv[simp]: \<open>swap_ell2 o\<^sub>C\<^sub>L swap_ell2 = id_cblinfun\<close>
+  by (metis adjoint_swap_ell2 unitary_def unitary_swap_ell2)
+
+lemma bounded_cbilinear_tensor_ell2[bounded_cbilinear]: \<open>bounded_cbilinear (\<otimes>\<^sub>s)\<close>
+proof standard
+  fix a a' :: "'a ell2" and b b' :: "'b ell2" and r :: complex
+  show \<open>tensor_ell2 (a + a') b = tensor_ell2 a b + tensor_ell2 a' b\<close>
+    by (meson tensor_ell2_add1)
+  show \<open>tensor_ell2 a (b + b') = tensor_ell2 a b + tensor_ell2 a b'\<close>
+    by (simp add: tensor_ell2_add2)  
+  show \<open>tensor_ell2 (r *\<^sub>C a) b = r *\<^sub>C tensor_ell2 a b\<close>
+    by (simp add: tensor_ell2_scaleC1)
+  show \<open>tensor_ell2 a (r *\<^sub>C b) = r *\<^sub>C tensor_ell2 a b\<close>
+    by (simp add: tensor_ell2_scaleC2)
+  show \<open>\<exists>K. \<forall>a b. norm (tensor_ell2 a b) \<le> norm a * norm b * K \<close>
+    apply (rule exI[of _ 1])
+    by (simp add: norm_tensor_ell2)
+qed
+
+subsection \<open>Tensor product of operators on \<^typ>\<open>_ ell2\<close>\<close>
+
 definition tensor_op :: \<open>('a ell2, 'b ell2) cblinfun \<Rightarrow> ('c ell2, 'd ell2) cblinfun
       \<Rightarrow> (('a\<times>'c) ell2, ('b\<times>'d) ell2) cblinfun\<close> (infixr "\<otimes>\<^sub>o" 70) where
-  \<open>tensor_op M N = (SOME P. \<forall>a c. P *\<^sub>V (ket (a,c)) = tensor_ell2 (M *\<^sub>V ket a) (N *\<^sub>V ket c))\<close>
-(* TODO: use cblinfun_extension or explicit_cblinfun *)
+  \<open>tensor_op M N = cblinfun_extension (range ket) (\<lambda>k. case (inv ket k) of (x,y) \<Rightarrow> tensor_ell2 (M *\<^sub>V ket x) (N *\<^sub>V ket y))\<close>
 
-lemma tensor_op_ket: 
-  fixes a :: \<open>'a\<close> and b :: \<open>'b\<close> and c :: \<open>'c\<close> and d :: \<open>'d\<close>
-  shows \<open>tensor_op M N *\<^sub>V (ket (a,c)) = tensor_ell2 (M *\<^sub>V ket a) (N *\<^sub>V ket c)\<close>
+(* Vaguely following Takesaki, Section IV.1 *)
+lemma  
+  fixes a :: \<open>'a\<close> and b :: \<open>'b\<close> and c :: \<open>'c\<close> and d :: \<open>'d\<close> and M :: \<open>'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b ell2\<close> and N :: \<open>'c ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2\<close>
+  shows tensor_op_ell2: \<open>(M \<otimes>\<^sub>o N) *\<^sub>V (\<psi> \<otimes>\<^sub>s \<phi>) = (M *\<^sub>V \<psi>) \<otimes>\<^sub>s (N *\<^sub>V \<phi>)\<close>
+  and tensor_op_norm: \<open>norm (M \<otimes>\<^sub>o N) = norm M * norm N\<close>
 proof -
-  define S :: \<open>('a\<times>'c) ell2 set\<close> where "S = ket ` UNIV"
-  define \<phi> where \<open>\<phi> = (\<lambda>(a,c). tensor_ell2 (M *\<^sub>V ket a) (N *\<^sub>V ket c))\<close>
-  define \<phi>' where \<open>\<phi>' = \<phi> \<circ> inv ket\<close>
+  define S1 :: \<open>('a\<times>'d) ell2 set\<close> and f1 g1 extg1 
+    where \<open>S1 = range ket\<close> 
+      and \<open>f1 k = (case (inv ket k) of (x,y) \<Rightarrow> tensor_ell2 (M *\<^sub>V ket x) (ket y))\<close>
+      and \<open>g1 = cconstruct S1 f1\<close> and \<open>extg1 = cblinfun_extension (cspan S1) g1\<close>
+    for k
+  define S2 :: \<open>('a\<times>'c) ell2 set\<close> and f2 g2 extg2
+    where \<open>S2 = range ket\<close> 
+      and \<open>f2 k = (case (inv ket k) of (x,y) \<Rightarrow> tensor_ell2 (ket x) (N *\<^sub>V ket y))\<close>
+      and \<open>g2 = cconstruct S2 f2\<close> and \<open>extg2 = cblinfun_extension (cspan S2) g2\<close>
+    for k
+  define tensorMN where \<open>tensorMN = extg1 o\<^sub>C\<^sub>L extg2\<close>
 
-  have def: \<open>tensor_op M N = (SOME P. \<forall>a c. P *\<^sub>V (ket (a,c)) = \<phi> (a,c))\<close>
-    unfolding tensor_op_def \<phi>_def by auto
+  have extg1_ket: \<open>extg1 *\<^sub>V ket (x,y) = (M *\<^sub>V ket x) \<otimes>\<^sub>s ket y\<close>
+    and norm_extg1: \<open>norm extg1 \<le> norm M\<close> for x y
+  proof -
+    have [simp]: \<open>cindependent S1\<close>
+      using S1_def cindependent_ket by blast
+    have [simp]: \<open>closure (cspan S1) = UNIV\<close>
+      by (simp add: S1_def)
+    have [simp]: \<open>ket (x, y) \<in> cspan S1\<close> for x y
+      by (simp add: S1_def complex_vector.span_base)
+    have g1_f1: \<open>g1 (ket (x,y)) = f1 (ket (x,y))\<close> for x y
+      by (metis S1_def \<open>cindependent S1\<close> complex_vector.construct_basis g1_def rangeI)
+    have [simp]: \<open>clinear g1\<close>
+      unfolding g1_def using \<open>cindependent S1\<close> by (rule complex_vector.linear_construct)
+    then have g1_add: \<open>g1 (x + y) = g1 x + g1 y\<close> if \<open>x \<in> cspan S1\<close> and \<open>y \<in> cspan S1\<close> for x y
+      using clinear_iff by blast
+    from \<open>clinear g1\<close> have g1_scale: \<open>g1 (c *\<^sub>C x) = c *\<^sub>C g1 x\<close> if \<open>x \<in> cspan S1\<close> for x c
+      by (simp add: complex_vector.linear_scale)
 
-  have \<open>cindependent S\<close>
-    using S_def cindependent_ket by blast
-  moreover have \<open>cspan S = UNIV\<close>
-    using S_def cspan_range_ket_finite by blast
-  ultimately have "cblinfun_extension_exists S \<phi>'"
-    by (rule cblinfun_extension_exists_finite_dim)
-  then have "\<exists>P. \<forall>x\<in>S. P *\<^sub>V x = \<phi>' x"
-    unfolding cblinfun_extension_exists_def by auto
-  then have ex: \<open>\<exists>P. \<forall>a c. P *\<^sub>V ket (a,c) = \<phi> (a,c)\<close>
-    by (metis S_def \<phi>'_def comp_eq_dest_lhs inj_ket inv_f_f rangeI)
+    have g1_bounded: \<open>norm (g1 \<psi>) \<le> norm M * norm \<psi>\<close> if \<open>\<psi> \<in> cspan S1\<close> for \<psi>
+    proof -
+      from that obtain t r where \<open>finite t\<close> and \<open>t \<subseteq> range ket\<close> and \<psi>_tr: \<open>\<psi> = (\<Sum>a\<in>t. r a *\<^sub>C a)\<close>
+        by (smt (verit) complex_vector.span_explicit mem_Collect_eq S1_def)
+      define X Y where \<open>X = fst ` inv ket ` t\<close> and \<open>Y = snd ` inv ket ` t\<close>
+      have g1_ket: \<open>g1 (ket (x,y)) = (M *\<^sub>V ket x) \<otimes>\<^sub>s ket y\<close> for x y
+        apply (simp add: g1_def S1_def)
+        apply (subst complex_vector.construct_basis)
+        by (auto simp add: f1_def cindependent_ket)
+      define \<xi> where \<open>\<xi> y = (\<Sum>x\<in>X. if (ket (x,y) \<in> t) then r (ket (x,y)) *\<^sub>C ket x else 0)\<close> for y
+      have \<psi>\<xi>: \<open>\<psi> = (\<Sum>y\<in>Y. \<xi> y \<otimes>\<^sub>s ket y)\<close>
+      proof -
+        have \<open>(\<Sum>y\<in>Y. \<xi> y \<otimes>\<^sub>s ket y) = (\<Sum>xy\<in>X \<times> Y. if ket xy \<in> t then r (ket xy) *\<^sub>C ket xy else 0)\<close>
+          apply (simp add: \<xi>_def tensor_ell2_sum_left)
+          apply (subst sum.swap)
+          by (auto simp: sum.cartesian_product tensor_ell2_scaleC1 intro!: sum.cong)
+        also have \<open>\<dots> = (\<Sum>xy\<in>ket ` (X \<times> Y). if xy \<in> t then r xy *\<^sub>C xy else 0)\<close>
+          apply (subst sum.reindex)
+          by (auto simp add: inj_on_def)
+        also have \<open>\<dots> = \<psi>\<close>
+          unfolding \<psi>_tr
+          apply (rule sum.mono_neutral_cong_right)
+             apply (auto simp add: X_def Y_def \<open>finite t\<close>)
+          by (smt (verit, ccfv_SIG) Sigma_cong Y_def \<open>t \<subseteq> range ket\<close> f_inv_into_f image_eqI subsetD subset_fst_snd)
+        finally show ?thesis
+          by simp
+      qed
+      have \<open>(norm (g1 \<psi>))\<^sup>2 = (norm (\<Sum>y\<in>Y. (M *\<^sub>V \<xi> y) \<otimes>\<^sub>s ket y))\<^sup>2\<close>
+        by (auto simp: \<psi>\<xi> complex_vector.linear_sum \<xi>_def tensor_ell2_sum_left 
+            complex_vector.linear_scale g1_ket tensor_ell2_scaleC1
+            complex_vector.linear_0
+            intro!: sum.cong arg_cong[where f=norm])
+      also have \<open>\<dots> = (\<Sum>y\<in>Y. (norm ((M *\<^sub>V \<xi> y) \<otimes>\<^sub>s ket y))\<^sup>2)\<close>
+        apply (rule pythagorean_theorem_sum)
+        using Y_def \<open>finite t\<close> by auto
+      also have \<open>\<dots> = (\<Sum>y\<in>Y. (norm (M *\<^sub>V \<xi> y))\<^sup>2)\<close>
+        by (simp add: norm_tensor_ell2)
+      also have \<open>\<dots> \<le> (\<Sum>y\<in>Y. (norm M * norm (\<xi> y))\<^sup>2)\<close>
+        by (meson norm_cblinfun norm_ge_zero power_mono sum_mono)
+      also have \<open>\<dots> = (norm M)\<^sup>2 * (\<Sum>y\<in>Y. (norm (\<xi> y \<otimes>\<^sub>s ket y))\<^sup>2)\<close>
+        by (simp add: power_mult_distrib norm_tensor_ell2 flip: sum_distrib_left)
+      also have \<open>\<dots> = (norm M)\<^sup>2 * (norm (\<Sum>y\<in>Y. \<xi> y \<otimes>\<^sub>s ket y))\<^sup>2\<close>
+        apply (subst pythagorean_theorem_sum)
+        using Y_def \<open>finite t\<close> by auto
+      also have \<open>\<dots> = (norm M)\<^sup>2 * (norm \<psi>)\<^sup>2\<close>
+        using \<psi>\<xi> by fastforce
+      finally show \<open>norm (g1 \<psi>) \<le> norm M * norm \<psi>\<close>
+        by (metis mult_nonneg_nonneg norm_ge_zero power2_le_imp_le power_mult_distrib)
+    qed
 
-  then have \<open>tensor_op M N *\<^sub>V (ket (a,c)) = \<phi> (a,c)\<close>
-    unfolding def apply (rule someI2_ex[where P=\<open>\<lambda>P. \<forall>a c. P *\<^sub>V (ket (a,c)) = \<phi> (a,c)\<close>])
-    by auto
-  then show ?thesis
-    unfolding \<phi>_def by auto
+    from g1_add g1_scale g1_bounded
+    have extg1_exists: \<open>cblinfun_extension_exists (cspan S1) g1\<close>
+      apply (rule_tac cblinfun_extension_exists_bounded_dense[where B=\<open>norm M\<close>])
+      by auto
+
+    then show \<open>extg1 *\<^sub>V ket (x,y) = (M *\<^sub>V ket x) \<otimes>\<^sub>s ket y\<close> for x y
+      by (simp add: extg1_def cblinfun_extension_apply g1_f1 f1_def)
+
+    from g1_add g1_scale g1_bounded
+    show \<open>norm extg1 \<le> norm M\<close>
+      by (auto simp: extg1_def intro!: cblinfun_extension_exists_norm)
+  qed
+
+  have extg1_apply: \<open>extg1 *\<^sub>V (\<psi> \<otimes>\<^sub>s \<phi>) = (M *\<^sub>V \<psi>) \<otimes>\<^sub>s \<phi>\<close> for \<psi> \<phi>
+  proof -
+    have 1: \<open>bounded_clinear (\<lambda>a. extg1 *\<^sub>V (a \<otimes>\<^sub>s ket y))\<close> for y
+      by (intro bounded_clinear_cblinfun_apply bounded_clinear_tensor_ell22)
+    have 2: \<open>bounded_clinear (\<lambda>a. (M *\<^sub>V a) \<otimes>\<^sub>s ket y)\<close> for y :: 'd
+      by (auto intro!: bounded_clinear_tensor_ell22[THEN bounded_clinear_compose] bounded_clinear_cblinfun_apply)
+    have 3: \<open>bounded_clinear (\<lambda>a. extg1 *\<^sub>V (\<psi> \<otimes>\<^sub>s a))\<close>
+      by (intro bounded_clinear_cblinfun_apply bounded_clinear_tensor_ell21)
+    have 4: \<open>bounded_clinear ((\<otimes>\<^sub>s) (M *\<^sub>V \<psi>))\<close>
+      by (auto intro!: bounded_clinear_tensor_ell21[THEN bounded_clinear_compose] bounded_clinear_cblinfun_apply)
+
+    have eq_ket: \<open>extg1 *\<^sub>V tensor_ell2 \<psi> (ket y) = tensor_ell2 (M *\<^sub>V \<psi>) (ket y)\<close> for y
+      apply (rule bounded_clinear_eq_on[where t=\<psi> and G=\<open>range ket\<close>])
+      using 1 2 extg1_ket by auto
+    show ?thesis 
+      apply (rule bounded_clinear_eq_on[where t=\<phi> and G=\<open>range ket\<close>])
+      using 3 4 eq_ket by auto
+  qed
+
+  have extg2_ket: \<open>extg2 *\<^sub>V ket (x,y) = ket x \<otimes>\<^sub>s (N *\<^sub>V ket y)\<close>
+    and norm_extg2: \<open>norm extg2 \<le> norm N\<close> for x y
+  proof -
+    have [simp]: \<open>cindependent S2\<close>
+      using S2_def cindependent_ket by blast
+    have [simp]: \<open>closure (cspan S2) = UNIV\<close>
+      by (simp add: S2_def)
+    have [simp]: \<open>ket (x, y) \<in> cspan S2\<close> for x y
+      by (simp add: S2_def complex_vector.span_base)
+    have g2_f2: \<open>g2 (ket (x,y)) = f2 (ket (x,y))\<close> for x y
+      by (metis S2_def \<open>cindependent S2\<close> complex_vector.construct_basis g2_def rangeI)
+    have [simp]: \<open>clinear g2\<close>
+      unfolding g2_def using \<open>cindependent S2\<close> by (rule complex_vector.linear_construct)
+    then have g2_add: \<open>g2 (x + y) = g2 x + g2 y\<close> if \<open>x \<in> cspan S2\<close> and \<open>y \<in> cspan S2\<close> for x y
+      using clinear_iff by blast
+    from \<open>clinear g2\<close> have g2_scale: \<open>g2 (c *\<^sub>C x) = c *\<^sub>C g2 x\<close> if \<open>x \<in> cspan S2\<close> for x c
+      by (simp add: complex_vector.linear_scale)
+
+    have g2_bounded: \<open>norm (g2 \<psi>) \<le> norm N * norm \<psi>\<close> if \<open>\<psi> \<in> cspan S2\<close> for \<psi>
+    proof -
+      from that obtain t r where \<open>finite t\<close> and \<open>t \<subseteq> range ket\<close> and \<psi>_tr: \<open>\<psi> = (\<Sum>a\<in>t. r a *\<^sub>C a)\<close>
+        by (smt (verit) complex_vector.span_explicit mem_Collect_eq S2_def)
+      define X Y where \<open>X = fst ` inv ket ` t\<close> and \<open>Y = snd ` inv ket ` t\<close>
+      have g2_ket: \<open>g2 (ket (x,y)) = ket x \<otimes>\<^sub>s (N *\<^sub>V ket y)\<close> for x y
+        apply (simp add: g2_def S2_def)
+        apply (subst complex_vector.construct_basis)
+        by (auto simp add: f2_def cindependent_ket)
+      define \<xi> where \<open>\<xi> x = (\<Sum>y\<in>Y. if (ket (x,y) \<in> t) then r (ket (x,y)) *\<^sub>C ket y else 0)\<close> for x
+      have \<psi>\<xi>: \<open>\<psi> = (\<Sum>x\<in>X. ket x \<otimes>\<^sub>s \<xi> x)\<close>
+      proof -
+        have \<open>(\<Sum>x\<in>X. ket x \<otimes>\<^sub>s \<xi> x) = (\<Sum>xy\<in>X \<times> Y. if ket xy \<in> t then r (ket xy) *\<^sub>C ket xy else 0)\<close>
+          apply (simp add: \<xi>_def tensor_ell2_sum_right)
+          by (auto simp: sum.cartesian_product tensor_ell2_scaleC2 intro!: sum.cong)
+        also have \<open>\<dots> = (\<Sum>xy\<in>ket ` (X \<times> Y). if xy \<in> t then r xy *\<^sub>C xy else 0)\<close>
+          apply (subst sum.reindex)
+          by (auto simp add: inj_on_def)
+        also have \<open>\<dots> = \<psi>\<close>
+          unfolding \<psi>_tr
+          apply (rule sum.mono_neutral_cong_right)
+             apply (auto simp add: X_def Y_def \<open>finite t\<close>)
+          by (smt (verit, ccfv_SIG) Sigma_cong Y_def \<open>t \<subseteq> range ket\<close> f_inv_into_f image_eqI subsetD subset_fst_snd)
+        finally show ?thesis
+          by simp
+      qed
+      have \<open>(norm (g2 \<psi>))\<^sup>2 = (norm (\<Sum>x\<in>X. ket x \<otimes>\<^sub>s (N *\<^sub>V \<xi> x)))\<^sup>2\<close>
+        by (auto simp: \<psi>\<xi> complex_vector.linear_sum \<xi>_def tensor_ell2_sum_right
+            complex_vector.linear_scale g2_ket tensor_ell2_scaleC2
+            complex_vector.linear_0
+            intro!: sum.cong arg_cong[where f=norm])
+      also have \<open>\<dots> = (\<Sum>x\<in>X. (norm (ket x \<otimes>\<^sub>s (N *\<^sub>V \<xi> x)))\<^sup>2)\<close>
+        apply (rule pythagorean_theorem_sum)
+        using X_def \<open>finite t\<close> by auto
+      also have \<open>\<dots> = (\<Sum>x\<in>X. (norm (N *\<^sub>V \<xi> x))\<^sup>2)\<close>
+        by (simp add: norm_tensor_ell2)
+      also have \<open>\<dots> \<le> (\<Sum>x\<in>X. (norm N * norm (\<xi> x))\<^sup>2)\<close>
+        by (meson norm_cblinfun norm_ge_zero power_mono sum_mono)
+      also have \<open>\<dots> = (norm N)\<^sup>2 * (\<Sum>x\<in>X. (norm (ket x \<otimes>\<^sub>s \<xi> x))\<^sup>2)\<close>
+        by (simp add: power_mult_distrib norm_tensor_ell2 flip: sum_distrib_left)
+      also have \<open>\<dots> = (norm N)\<^sup>2 * (norm (\<Sum>x\<in>X. ket x \<otimes>\<^sub>s \<xi> x))\<^sup>2\<close>
+        apply (subst pythagorean_theorem_sum)
+        using X_def \<open>finite t\<close> by auto
+      also have \<open>\<dots> = (norm N)\<^sup>2 * (norm \<psi>)\<^sup>2\<close>
+        using \<psi>\<xi> by fastforce
+      finally show \<open>norm (g2 \<psi>) \<le> norm N * norm \<psi>\<close>
+        by (metis mult_nonneg_nonneg norm_ge_zero power2_le_imp_le power_mult_distrib)
+    qed
+
+    from g2_add g2_scale g2_bounded
+    have extg2_exists: \<open>cblinfun_extension_exists (cspan S2) g2\<close>
+      apply (rule_tac cblinfun_extension_exists_bounded_dense[where B=\<open>norm N\<close>])
+      by auto
+
+    then show \<open>extg2 *\<^sub>V ket (x,y) = ket x \<otimes>\<^sub>s N *\<^sub>V ket y\<close> for x y
+      by (simp add: extg2_def cblinfun_extension_apply g2_f2 f2_def)
+
+    from g2_add g2_scale g2_bounded
+    show \<open>norm extg2 \<le> norm N\<close>
+      by (auto simp: extg2_def intro!: cblinfun_extension_exists_norm)
+  qed
+
+  have extg2_apply: \<open>extg2 *\<^sub>V (\<psi> \<otimes>\<^sub>s \<phi>) = \<psi> \<otimes>\<^sub>s (N *\<^sub>V \<phi>)\<close> for \<psi> \<phi>
+  proof -
+    have 1: \<open>bounded_clinear (\<lambda>a. extg2 *\<^sub>V (ket x \<otimes>\<^sub>s a))\<close> for x
+      by (intro bounded_clinear_cblinfun_apply bounded_clinear_tensor_ell21)
+    have 2: \<open>bounded_clinear (\<lambda>a. ket x \<otimes>\<^sub>s (N *\<^sub>V a))\<close> for x :: 'a
+      by (auto intro!: bounded_clinear_tensor_ell21[THEN bounded_clinear_compose] bounded_clinear_cblinfun_apply)
+    have 3: \<open>bounded_clinear (\<lambda>a. extg2 *\<^sub>V (a \<otimes>\<^sub>s \<phi>))\<close>
+      by (intro bounded_clinear_cblinfun_apply bounded_clinear_tensor_ell22)
+    have 4: \<open> bounded_clinear (\<lambda>a. a \<otimes>\<^sub>s (N *\<^sub>V \<phi>))\<close>
+      by (auto intro!: bounded_clinear_tensor_ell22[THEN bounded_clinear_compose] bounded_clinear_cblinfun_apply)
+
+    have eq_ket: \<open>extg2 *\<^sub>V (ket x \<otimes>\<^sub>s \<phi>) = ket x \<otimes>\<^sub>s (N *\<^sub>V \<phi>)\<close> for x
+      apply (rule bounded_clinear_eq_on[where t=\<phi> and G=\<open>range ket\<close>])
+      using 1 2 extg2_ket by auto
+    show ?thesis 
+      apply (rule bounded_clinear_eq_on[where t=\<psi> and G=\<open>range ket\<close>])
+      using 3 4 eq_ket by auto
+  qed
+
+  have tensorMN_apply: \<open>tensorMN *\<^sub>V (\<psi> \<otimes>\<^sub>s \<phi>) = (M *\<^sub>V \<psi>) \<otimes>\<^sub>s (N *\<^sub>V \<phi>)\<close> for \<psi> \<phi>
+    by (simp add: extg1_apply extg2_apply tensorMN_def)
+
+  have \<open>cblinfun_extension_exists (range ket) (\<lambda>k. case inv ket k of (x, y) \<Rightarrow> (M *\<^sub>V ket x) \<otimes>\<^sub>s (N *\<^sub>V ket y))\<close>
+    apply (rule cblinfun_extension_existsI[where B=tensorMN])
+    using tensorMN_apply[of \<open>ket _\<close> \<open>ket _\<close>] by auto
+
+  then have otimes_ket: \<open>(M \<otimes>\<^sub>o N) *\<^sub>V (ket (a,c)) = (M *\<^sub>V ket a) \<otimes>\<^sub>s (N *\<^sub>V ket c)\<close> for a c
+    by (simp add: tensor_op_def cblinfun_extension_apply)
+
+  have tensorMN_otimes: \<open>M \<otimes>\<^sub>o N = tensorMN\<close>
+    apply (rule_tac equal_ket) 
+    using tensorMN_apply[of \<open>ket _\<close> \<open>ket _\<close>] 
+    by (auto simp: otimes_ket)
+
+  show otimes_apply: \<open>(M \<otimes>\<^sub>o N) *\<^sub>V (\<psi> \<otimes>\<^sub>s \<phi>) = (M *\<^sub>V \<psi>) \<otimes>\<^sub>s (N *\<^sub>V \<phi>)\<close> for \<psi> \<phi>
+    by (simp add: tensorMN_apply tensorMN_otimes)
+
+  show \<open>norm (M \<otimes>\<^sub>o N) = norm M * norm N\<close>
+  proof (rule order.antisym)
+    show \<open>norm (M \<otimes>\<^sub>o N) \<le> norm M * norm N\<close>
+      apply (simp add: tensorMN_otimes tensorMN_def)
+      by (smt (verit, best) mult_mono norm_cblinfun_compose norm_extg1 norm_extg2 norm_ge_zero)
+    have \<open>norm (M \<otimes>\<^sub>o N) \<ge> norm M * norm N * \<epsilon>\<close> if \<open>\<epsilon> < 1\<close> and \<open>\<epsilon> > 0\<close> for \<epsilon>
+    proof -
+      obtain \<psi>a where 1: \<open>norm (M *\<^sub>V \<psi>a) \<ge> norm M * sqrt \<epsilon>\<close> and \<open>norm \<psi>a = 1\<close>
+        apply atomize_elim
+        apply (rule cblinfun_norm_approx_witness_mult[where \<epsilon>=\<open>sqrt \<epsilon>\<close> and A=M])
+        using \<open>\<epsilon> < 1\<close> by auto
+      obtain \<psi>b where 2: \<open>norm (N *\<^sub>V \<psi>b) \<ge> norm N * sqrt \<epsilon>\<close> and \<open>norm \<psi>b = 1\<close>
+        apply atomize_elim
+        apply (rule cblinfun_norm_approx_witness_mult[where \<epsilon>=\<open>sqrt \<epsilon>\<close> and A=N])
+        using \<open>\<epsilon> < 1\<close> by auto
+      have \<open>norm ((M \<otimes>\<^sub>o N) *\<^sub>V (\<psi>a \<otimes>\<^sub>s \<psi>b)) / norm (\<psi>a \<otimes>\<^sub>s \<psi>b) = norm ((M \<otimes>\<^sub>o N) *\<^sub>V (\<psi>a \<otimes>\<^sub>s \<psi>b))\<close>
+        using \<open>norm \<psi>a = 1\<close> \<open>norm \<psi>b = 1\<close>
+        by (simp add: norm_tensor_ell2) 
+      also have \<open>\<dots> = norm (M *\<^sub>V \<psi>a) * norm (N *\<^sub>V \<psi>b)\<close>
+        by (simp add: norm_tensor_ell2 otimes_apply)
+      also from 1 2 have \<open>\<dots> \<ge> (norm M * sqrt \<epsilon>) * (norm N * sqrt \<epsilon>)\<close> (is \<open>_ \<ge> \<dots>\<close>)
+        apply (rule mult_mono')
+        using \<open>\<epsilon> > 0\<close> by auto
+      also have \<open>\<dots> = norm M * norm N * \<epsilon>\<close>
+        using \<open>\<epsilon> > 0\<close> by force
+      finally show ?thesis
+        using cblinfun_norm_geqI by blast
+    qed
+    then show \<open>norm (M \<otimes>\<^sub>o N) \<ge> norm M * norm N\<close>
+      by (metis field_le_mult_one_interval mult.commute)
+  qed
 qed
 
-
-lemma tensor_op_ell2: "tensor_op A B *\<^sub>V tensor_ell2 \<psi> \<phi> = tensor_ell2 (A *\<^sub>V \<psi>) (B *\<^sub>V \<phi>)"
-proof -
-  have 1: \<open>clinear (\<lambda>a. tensor_op A B *\<^sub>V tensor_ell2 a (ket b))\<close> for b
-    by (auto intro!: clinearI simp: tensor_ell2_add1 tensor_ell2_scaleC1 cblinfun.add_right)
-  have 2: \<open>clinear (\<lambda>a. tensor_ell2 (A *\<^sub>V a) (B *\<^sub>V ket b))\<close> for b
-    by (auto intro!: clinearI simp: tensor_ell2_add1 tensor_ell2_scaleC1 cblinfun.add_right)
-  have 3: \<open>clinear (\<lambda>a. tensor_op A B *\<^sub>V tensor_ell2 \<psi> a)\<close>
-    by (auto intro!: clinearI simp: tensor_ell2_add2 tensor_ell2_scaleC2 cblinfun.add_right)
-  have 4: \<open>clinear (\<lambda>a. tensor_ell2 (A *\<^sub>V \<psi>) (B *\<^sub>V a))\<close>
-    by (auto intro!: clinearI simp: tensor_ell2_add2 tensor_ell2_scaleC2 cblinfun.add_right)
-
-  have eq_ket_ket: \<open>tensor_op A B *\<^sub>V tensor_ell2 (ket a) (ket b) = tensor_ell2 (A *\<^sub>V ket a) (B *\<^sub>V ket b)\<close> for a b
-    by (simp add: tensor_op_ket)
-  have eq_ket: \<open>tensor_op A B *\<^sub>V tensor_ell2 \<psi> (ket b) = tensor_ell2 (A *\<^sub>V \<psi>) (B *\<^sub>V ket b)\<close> for b
-    apply (rule fun_cong[where x=\<psi>])
-    using 1 2 eq_ket_ket by (rule clinear_equal_ket)
-  show ?thesis 
-    apply (rule fun_cong[where x=\<phi>])
-    using 3 4 eq_ket by (rule clinear_equal_ket)
-qed
+lemma tensor_op_ket: \<open>tensor_op M N *\<^sub>V (ket (a,c)) = tensor_ell2 (M *\<^sub>V ket a) (N *\<^sub>V ket c)\<close>
+  by (metis tensor_ell2_ket tensor_op_ell2)
 
 lemma comp_tensor_op: "(tensor_op a b) o\<^sub>C\<^sub>L (tensor_op c d) = tensor_op (a o\<^sub>C\<^sub>L c) (b o\<^sub>C\<^sub>L d)"
   for a :: "'e ell2 \<Rightarrow>\<^sub>C\<^sub>L 'c ell2" and b :: "'f ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2" and
       c :: "'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'e ell2" and d :: "'b ell2 \<Rightarrow>\<^sub>C\<^sub>L 'f ell2"
   apply (rule equal_ket)
   apply (rename_tac ij, case_tac ij, rename_tac i j, hypsubst_thin)
-  by (simp flip: tensor_ell2_ket add: tensor_op_ell2 cblinfun_apply_cblinfun_compose)
+  by (simp flip: tensor_ell2_ket add: tensor_op_ell2)
 
+lemma tensor_op_left_add: \<open>(x + y) \<otimes>\<^sub>o b = x \<otimes>\<^sub>o b + y \<otimes>\<^sub>o b\<close>
+  for x y :: \<open>'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'c ell2\<close> and b :: \<open>'b ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2\<close>
+  apply (auto intro!: equal_ket simp: tensor_op_ket)
+  by (simp add: plus_cblinfun.rep_eq tensor_ell2_add1 tensor_op_ket)
 
-lemma tensor_op_cbilinear: \<open>cbilinear (tensor_op :: 'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b ell2
+lemma tensor_op_right_add: \<open>b \<otimes>\<^sub>o (x + y) = b \<otimes>\<^sub>o x + b \<otimes>\<^sub>o y\<close>
+  for x y :: \<open>'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'c ell2\<close> and b :: \<open>'b ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2\<close>
+  apply (auto intro!: equal_ket simp: tensor_op_ket)
+  by (simp add: plus_cblinfun.rep_eq tensor_ell2_add2 tensor_op_ket)
+
+lemma tensor_op_scaleC_left: \<open>(c *\<^sub>C x) \<otimes>\<^sub>o b = c *\<^sub>C (x \<otimes>\<^sub>o b)\<close>
+  for x :: \<open>'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'c ell2\<close> and b :: \<open>'b ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2\<close>
+  by (auto intro!: equal_ket simp: tensor_op_ket tensor_ell2_scaleC1)
+
+lemma tensor_op_scaleC_right: \<open>b \<otimes>\<^sub>o (c *\<^sub>C x) = c *\<^sub>C (b \<otimes>\<^sub>o x)\<close>
+  for x :: \<open>'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'c ell2\<close> and b :: \<open>'b ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2\<close>
+  by (auto intro!: equal_ket simp: tensor_op_ket tensor_ell2_scaleC2)
+
+lemma tensor_op_bounded_cbilinear: \<open>bounded_cbilinear (tensor_op :: 'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b ell2
                                                  \<Rightarrow> 'c ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2 \<Rightarrow> _)\<close>
-proof -
-  have \<open>clinear (\<lambda>b::'c ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2. tensor_op a b)\<close> for a :: \<open>'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b ell2\<close>
-    apply (rule clinearI)
-     apply (rule equal_ket, rename_tac ij, case_tac ij, rename_tac i j, hypsubst_thin)
-     apply (simp flip: tensor_ell2_ket add: tensor_op_ell2 cblinfun.add_left tensor_ell2_add2)
-    apply (rule equal_ket, rename_tac ij, case_tac ij, rename_tac i j, hypsubst_thin)
-    by (simp add: scaleC_cblinfun.rep_eq tensor_ell2_scaleC2 tensor_op_ket)
+  by (auto intro!: bounded_cbilinear.intro exI[of _ 1]
+      simp: tensor_op_left_add tensor_op_right_add tensor_op_scaleC_left tensor_op_scaleC_right tensor_op_norm)
 
-  moreover have \<open>clinear (\<lambda>a::'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b ell2. tensor_op a b)\<close> for b :: \<open>'c ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2\<close>
-    apply (rule clinearI)
-     apply (rule equal_ket, rename_tac ij, case_tac ij, rename_tac i j, hypsubst_thin)
-     apply (simp flip: tensor_ell2_ket add: tensor_op_ell2 cblinfun.add_left tensor_ell2_add1)
-    apply (rule equal_ket, rename_tac ij, case_tac ij, rename_tac i j, hypsubst_thin)
-    by (simp add: scaleC_cblinfun.rep_eq tensor_ell2_scaleC1 tensor_op_ket)
-
-  ultimately show ?thesis
-    unfolding cbilinear_def by auto
-qed
-
+(* lemma tensor_op_cbilinear: \<open>cbilinear (tensor_op :: 'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b ell2
+                                                 \<Rightarrow> 'c ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2 \<Rightarrow> _)\<close> *)
 
 lemma tensor_butter: \<open>tensor_op (butterket i j) (butterket k l) = butterket (i,k) (j,l)\<close>
   for i :: "_" and j :: "_" and k :: "_" and l :: "_"
@@ -187,15 +541,15 @@ lemma tensor_butter: \<open>tensor_op (butterket i j) (butterket k l) = butterke
   by (auto simp: tensor_ell2_scaleC1 tensor_ell2_scaleC2)
 
 lemma cspan_tensor_op: \<open>cspan {tensor_op (butterket i j) (butterket k l)| i (j::_) k (l::_). True} = UNIV\<close>
-  unfolding tensor_butter
+(*   unfolding tensor_butter
   apply (subst cspan_butterfly_ket[symmetric])
-  by (metis surj_pair)
+  by (metis surj_pair) x *)
+  sorry
 
 lemma cindependent_tensor_op: \<open>cindependent {tensor_op (butterket i j) (butterket k l)| i (j::_) k (l::_). True}\<close>
   unfolding tensor_butter
   using cindependent_butterfly_ket
   by (smt (z3) Collect_mono_iff complex_vector.independent_mono)
-
 
 lemma tensor_extensionality:
   fixes F G :: \<open>((('a \<times> 'b) ell2) \<Rightarrow>\<^sub>C\<^sub>L (('c \<times> 'd) ell2)) \<Rightarrow> 'e::complex_vector\<close>
@@ -229,7 +583,9 @@ lemma tensor_butterfly[simp]: "tensor_op (butterfly \<psi> \<psi>') (butterfly \
 definition tensor_lift :: \<open>(('a1 ell2 \<Rightarrow>\<^sub>C\<^sub>L 'a2 ell2) \<Rightarrow> ('b1 ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b2 ell2) \<Rightarrow> 'c)
                         \<Rightarrow> ((('a1\<times>'b1) ell2 \<Rightarrow>\<^sub>C\<^sub>L ('a2\<times>'b2) ell2) \<Rightarrow> 'c::complex_vector)\<close> where
   "tensor_lift F2 = (SOME G. clinear G \<and> (\<forall>a b. G (tensor_op a b) = F2 a b))"
+(* TODO the same for tensor_ell2 *)
 
+(* TODO needs some sort constraints *)
 lemma 
   fixes F2 :: "'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b ell2
             \<Rightarrow> 'c ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2
@@ -237,7 +593,7 @@ lemma
   assumes "cbilinear F2"
   shows tensor_lift_clinear: "clinear (tensor_lift F2)"
     and tensor_lift_correct:  \<open>(\<lambda>a b. tensor_lift F2 (tensor_op a b)) = F2\<close>
-proof -
+(* proof -
   define F2' t4 \<phi> where
     \<open>F2' = tensor_lift F2\<close> and
     \<open>t4 = (\<lambda>(i,j,k,l). tensor_op (butterket i j) (butterket k l))\<close> and
@@ -284,191 +640,27 @@ proof -
   have *: \<open>G *\<^sub>V tensor_op a (butterket k l) = F2 a (butterket k l)\<close> for a k l
     apply (rule complex_vector.linear_eq_on_span[where g=\<open>\<lambda>a. F2 a _\<close> and B=\<open>{butterket k l|k l. True}\<close>])
     unfolding cspan_butterfly_ket
-    using * apply (auto intro!: clinear_compose[unfolded o_def, where f=\<open>\<lambda>a. tensor_op a _\<close> and g=\<open>(*\<^sub>V) G\<close>])
+    using * apply (auto intro!: clinear_compose[unfolded o_def, where f=\<open>\<lambda>a. tensor_op a _\<close> and g=\<open>( *\<^sub>V) G\<close>])
      apply (metis cbilinear_def tensor_op_cbilinear)
     using assms unfolding cbilinear_def by blast
   have G_F2: \<open>G *\<^sub>V tensor_op a b = F2 a b\<close> for a b
     apply (rule complex_vector.linear_eq_on_span[where g=\<open>F2 a\<close> and B=\<open>{butterket k l|k l. True}\<close>])
     unfolding cspan_butterfly_ket
     using * apply (auto simp: cblinfun.add_right clinearI
-                        intro!: clinear_compose[unfolded o_def, where f=\<open>tensor_op a\<close> and g=\<open>(*\<^sub>V) G\<close>])
+                        intro!: clinear_compose[unfolded o_def, where f=\<open>tensor_op a\<close> and g=\<open>( *\<^sub>V) G\<close>])
     apply (meson cbilinear_def tensor_op_cbilinear)
     using assms unfolding cbilinear_def by blast
 
   have \<open>clinear F2' \<and> (\<forall>a b. F2' (tensor_op a b) = F2 a b)\<close>
     unfolding F2'_def tensor_lift_def 
-    apply (rule someI[where x=\<open>(*\<^sub>V) G\<close> and P=\<open>\<lambda>G. clinear G \<and> (\<forall>a b. G (tensor_op a b) = F2 a b)\<close>])
+    apply (rule someI[where x=\<open>( *\<^sub>V) G\<close> and P=\<open>\<lambda>G. clinear G \<and> (\<forall>a b. G (tensor_op a b) = F2 a b)\<close>])
     using G_F2 by (simp add: cblinfun.add_right clinearI)
 
   then show \<open>clinear F2'\<close> and \<open>(\<lambda>a b. tensor_lift F2 (tensor_op a b)) = F2\<close>
     unfolding F2'_def by auto
-qed
+qed *)
+  sorry
 
-lift_definition assoc_ell20 :: \<open>(('a\<times>'b)\<times>'c) ell2 \<Rightarrow> ('a\<times>('b\<times>'c)) ell2\<close> is
-  \<open>\<lambda>f (a,(b,c)). f ((a,b),c)\<close>
-  by auto
-
-lift_definition assoc_ell20' :: \<open>('a\<times>('b\<times>'c)) ell2 \<Rightarrow> (('a\<times>'b)\<times>'c) ell2\<close> is
-  \<open>\<lambda>f ((a,b),c). f (a,(b,c))\<close>
-  by auto
-
-lift_definition assoc_ell2 :: \<open>(('a\<times>'b)\<times>'c) ell2 \<Rightarrow>\<^sub>C\<^sub>L ('a\<times>('b\<times>'c)) ell2\<close>
-  is assoc_ell20
-  apply (subst bounded_clinear_finite_dim)
-   apply (rule clinearI; transfer)
-  by auto
-
-lift_definition assoc_ell2' :: \<open>('a\<times>('b\<times>'c)) ell2 \<Rightarrow>\<^sub>C\<^sub>L (('a\<times>'b)\<times>'c) ell2\<close> is
-  assoc_ell20'
-  apply (subst bounded_clinear_finite_dim)
-   apply (rule clinearI; transfer)
-  by auto
-
-lemma assoc_ell2_tensor: \<open>assoc_ell2 *\<^sub>V tensor_ell2 (tensor_ell2 a b) c = tensor_ell2 a (tensor_ell2 b c)\<close>
-  apply (rule clinear_equal_ket[THEN fun_cong, where x=a])
-    apply (simp add: cblinfun.add_right clinearI tensor_ell2_add1 tensor_ell2_scaleC1)
-   apply (simp add: clinear_tensor_ell22)
-  apply (rule clinear_equal_ket[THEN fun_cong, where x=b])
-    apply (simp add: cblinfun.add_right clinearI tensor_ell2_add1 tensor_ell2_add2 tensor_ell2_scaleC1 tensor_ell2_scaleC2)
-   apply (simp add: clinearI tensor_ell2_add1 tensor_ell2_add2 tensor_ell2_scaleC1 tensor_ell2_scaleC2)
-  apply (rule clinear_equal_ket[THEN fun_cong, where x=c])
-    apply (simp add: cblinfun.add_right clinearI tensor_ell2_add2 tensor_ell2_scaleC2)
-   apply (simp add: clinearI tensor_ell2_add2 tensor_ell2_scaleC2)
-  unfolding assoc_ell2.rep_eq
-  apply transfer
-  by auto
-
-lemma assoc_ell2'_tensor: \<open>assoc_ell2' *\<^sub>V tensor_ell2 a (tensor_ell2 b c) = tensor_ell2 (tensor_ell2 a b) c\<close>
-  apply (rule clinear_equal_ket[THEN fun_cong, where x=a])
-    apply (simp add: cblinfun.add_right clinearI tensor_ell2_add1 tensor_ell2_scaleC1)
-   apply (simp add: clinearI tensor_ell2_add1 tensor_ell2_scaleC1)
-  apply (rule clinear_equal_ket[THEN fun_cong, where x=b])
-    apply (simp add: cblinfun.add_right clinearI tensor_ell2_add1 tensor_ell2_add2 tensor_ell2_scaleC1 tensor_ell2_scaleC2)
-   apply (simp add: clinearI tensor_ell2_add1 tensor_ell2_add2 tensor_ell2_scaleC1 tensor_ell2_scaleC2)
-  apply (rule clinear_equal_ket[THEN fun_cong, where x=c])
-    apply (simp add: cblinfun.add_right clinearI tensor_ell2_add2 tensor_ell2_scaleC2)
-   apply (simp add: clinearI tensor_ell2_add2 tensor_ell2_scaleC2)
-  unfolding assoc_ell2'.rep_eq
-  apply transfer
-  by auto
-
-lemma adjoint_assoc_ell2[simp]: \<open>assoc_ell2* = assoc_ell2'\<close>
-proof (rule adjoint_eqI[symmetric])
-  have [simp]: \<open>clinear (cinner (assoc_ell2' *\<^sub>V x))\<close> for x :: \<open>('a \<times> 'b \<times> 'c) ell2\<close>
-    by (metis (no_types, lifting) cblinfun.add_right cinner_scaleC_right clinearI complex_scaleC_def mult.comm_neutral of_complex_def vector_to_cblinfun_adj_apply)
-  have [simp]: \<open>clinear (\<lambda>a. \<langle>x, assoc_ell2 *\<^sub>V a\<rangle>)\<close> for x :: \<open>('a \<times> 'b \<times> 'c) ell2\<close>
-    by (simp add: cblinfun.add_right cinner_add_right clinearI)
-  have [simp]: \<open>antilinear (\<lambda>a. \<langle>a, y\<rangle>)\<close> for y :: \<open>('a \<times> 'b \<times> 'c) ell2\<close>
-    using bounded_antilinear_cinner_left bounded_antilinear_def by blast
-  have [simp]: \<open>antilinear (\<lambda>a. \<langle>assoc_ell2' *\<^sub>V a, y\<rangle>)\<close> for y :: \<open>(('a \<times> 'b) \<times> 'c) ell2\<close>
-    by (simp add: cblinfun.add_right cinner_add_left antilinearI)
-  have \<open>\<langle>assoc_ell2' *\<^sub>V (ket x), ket y\<rangle> = \<langle>ket x, assoc_ell2 *\<^sub>V ket y\<rangle>\<close> for x :: \<open>'a \<times> 'b \<times> 'c\<close> and y
-    apply (cases x, cases y)
-    by (simp flip: tensor_ell2_ket add: assoc_ell2'_tensor assoc_ell2_tensor)
-  then have \<open>\<langle>assoc_ell2' *\<^sub>V (ket x), y\<rangle> = \<langle>ket x, assoc_ell2 *\<^sub>V y\<rangle>\<close> for x :: \<open>'a \<times> 'b \<times> 'c\<close> and y
-    by (rule clinear_equal_ket[THEN fun_cong, rotated 2], simp_all)
-  then show \<open>\<langle>assoc_ell2' *\<^sub>V x, y\<rangle> = \<langle>x, assoc_ell2 *\<^sub>V y\<rangle>\<close> for x :: \<open>('a \<times> 'b \<times> 'c) ell2\<close> and y
-    by (rule antilinear_equal_ket[THEN fun_cong, rotated 2], simp_all)
-qed
-
-lemma adjoint_assoc_ell2'[simp]: \<open>assoc_ell2'* = assoc_ell2\<close>
-  by (simp flip: adjoint_assoc_ell2)
-
-
-lift_definition swap_ell20 :: \<open>('a\<times>'b) ell2 \<Rightarrow> ('b\<times>'a) ell2\<close> is
-  \<open>\<lambda>f (a,b). f (b,a)\<close>
-  by auto
-
-lift_definition swap_ell2 :: \<open>('a\<times>'b) ell2 \<Rightarrow>\<^sub>C\<^sub>L ('b\<times>'a) ell2\<close>
-  is swap_ell20
-  apply (subst bounded_clinear_finite_dim)
-   apply (rule clinearI; transfer)
-  by auto
-
-lemma swap_ell2_tensor[simp]: \<open>swap_ell2 *\<^sub>V tensor_ell2 a b = tensor_ell2 b a\<close>
-  apply (rule clinear_equal_ket[THEN fun_cong, where x=a])
-    apply (simp add: cblinfun.add_right clinearI tensor_ell2_add1 tensor_ell2_scaleC1)
-   apply (simp add: clinear_tensor_ell21)
-  apply (rule clinear_equal_ket[THEN fun_cong, where x=b])
-    apply (simp add: cblinfun.add_right clinearI tensor_ell2_add1 tensor_ell2_add2 tensor_ell2_scaleC1 tensor_ell2_scaleC2)
-   apply (simp add: clinearI tensor_ell2_add1 tensor_ell2_add2 tensor_ell2_scaleC1 tensor_ell2_scaleC2)
-  unfolding swap_ell2.rep_eq
-  apply transfer
-  by auto
-
-lemma adjoint_swap_ell2[simp]: \<open>swap_ell2* = swap_ell2\<close>
-proof (rule adjoint_eqI[symmetric])
-  have [simp]: \<open>clinear (cinner (swap_ell2 *\<^sub>V x))\<close> for x :: \<open>('a \<times> 'b) ell2\<close>
-    by (metis (no_types, lifting) cblinfun.add_right cinner_scaleC_right clinearI complex_scaleC_def mult.comm_neutral of_complex_def vector_to_cblinfun_adj_apply)
-  have [simp]: \<open>clinear (\<lambda>a. \<langle>x, swap_ell2 *\<^sub>V a\<rangle>)\<close> for x :: \<open>('a \<times> 'b) ell2\<close>
-    by (simp add: cblinfun.add_right cinner_add_right clinearI)
-  have [simp]: \<open>antilinear (\<lambda>a. \<langle>a, y\<rangle>)\<close> for y :: \<open>('a \<times> 'b) ell2\<close>
-    using bounded_antilinear_cinner_left bounded_antilinear_def by blast
-  have [simp]: \<open>antilinear (\<lambda>a. \<langle>swap_ell2 *\<^sub>V a, y\<rangle>)\<close> for y :: \<open>('b \<times> 'a) ell2\<close>
-    by (simp add: cblinfun.add_right cinner_add_left antilinearI)
-  have \<open>\<langle>swap_ell2 *\<^sub>V (ket x), ket y\<rangle> = \<langle>ket x, swap_ell2 *\<^sub>V ket y\<rangle>\<close> for x :: \<open>'a \<times> 'b\<close> and y
-    apply (cases x, cases y)
-    by (simp flip: tensor_ell2_ket add: swap_ell2_tensor)
-  then have \<open>\<langle>swap_ell2 *\<^sub>V (ket x), y\<rangle> = \<langle>ket x, swap_ell2 *\<^sub>V y\<rangle>\<close> for x :: \<open>'a \<times> 'b\<close> and y
-    by (rule clinear_equal_ket[THEN fun_cong, rotated 2], simp_all)
-  then show \<open>\<langle>swap_ell2 *\<^sub>V x, y\<rangle> = \<langle>x, swap_ell2 *\<^sub>V y\<rangle>\<close> for x :: \<open>('a \<times> 'b) ell2\<close> and y
-    apply (rule antilinear_equal_ket[THEN fun_cong, rotated 2])
-    by simp_all
-qed
-
-
-lemma tensor_ell2_extensionality:
-  assumes "(\<And>s t. a *\<^sub>V (s \<otimes>\<^sub>s t) = b *\<^sub>V (s \<otimes>\<^sub>s t))"
-  shows "a = b"
-  apply (rule equal_ket, case_tac x, hypsubst_thin)
-  by (simp add: assms flip: tensor_ell2_ket)
-
-lemma assoc_ell2'_assoc_ell2[simp]: \<open>assoc_ell2' o\<^sub>C\<^sub>L assoc_ell2 = id_cblinfun\<close>
-  by (auto intro!: equal_ket simp: cblinfun_apply_cblinfun_compose assoc_ell2'_tensor assoc_ell2_tensor simp flip: tensor_ell2_ket)
-
-lemma assoc_ell2_assoc_ell2'[simp]: \<open>assoc_ell2 o\<^sub>C\<^sub>L assoc_ell2' = id_cblinfun\<close>
-  by (auto intro!: equal_ket simp: cblinfun_apply_cblinfun_compose assoc_ell2'_tensor assoc_ell2_tensor simp flip: tensor_ell2_ket)
-
-lemma unitary_assoc_ell2[simp]: "unitary assoc_ell2"
-  unfolding unitary_def by auto
-
-lemma unitary_assoc_ell2'[simp]: "unitary assoc_ell2'"
-  unfolding unitary_def by auto
-
-lemma tensor_op_left_add: \<open>(x + y) \<otimes>\<^sub>o b = x \<otimes>\<^sub>o b + y \<otimes>\<^sub>o b\<close>
-  for x y :: \<open>'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'c ell2\<close> and b :: \<open>'b ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2\<close>
-  apply (auto intro!: equal_ket simp: tensor_op_ket)
-  by (simp add: plus_cblinfun.rep_eq tensor_ell2_add1 tensor_op_ket)
-
-lemma tensor_op_right_add: \<open>b \<otimes>\<^sub>o (x + y) = b \<otimes>\<^sub>o x + b \<otimes>\<^sub>o y\<close>
-  for x y :: \<open>'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'c ell2\<close> and b :: \<open>'b ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2\<close>
-  apply (auto intro!: equal_ket simp: tensor_op_ket)
-  by (simp add: plus_cblinfun.rep_eq tensor_ell2_add2 tensor_op_ket)
-
-lemma tensor_op_scaleC_left: \<open>(c *\<^sub>C x) \<otimes>\<^sub>o b = c *\<^sub>C (x \<otimes>\<^sub>o b)\<close>
-  for x :: \<open>'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'c ell2\<close> and b :: \<open>'b ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2\<close>
-  apply (auto intro!: equal_ket simp: tensor_op_ket)
-  by (metis scaleC_cblinfun.rep_eq tensor_ell2_ket tensor_ell2_scaleC1 tensor_op_ell2)
-
-lemma tensor_op_scaleC_right: \<open>b \<otimes>\<^sub>o (c *\<^sub>C x) = c *\<^sub>C (b \<otimes>\<^sub>o x)\<close>
-  for x :: \<open>'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'c ell2\<close> and b :: \<open>'b ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2\<close>
-  apply (auto intro!: equal_ket simp: tensor_op_ket)
-  by (metis scaleC_cblinfun.rep_eq tensor_ell2_ket tensor_ell2_scaleC2 tensor_op_ell2)
-
-lemma clinear_tensor_left[simp]: \<open>clinear (\<lambda>a. a \<otimes>\<^sub>o b :: _ ell2 \<Rightarrow>\<^sub>C\<^sub>L _ ell2)\<close>
-  apply (rule clinearI)
-   apply (rule tensor_op_left_add)
-  by (rule tensor_op_scaleC_left)
-
-lemma clinear_tensor_right[simp]: \<open>clinear (\<lambda>b. a \<otimes>\<^sub>o b :: _ ell2 \<Rightarrow>\<^sub>C\<^sub>L _ ell2)\<close>
-  apply (rule clinearI)
-   apply (rule tensor_op_right_add)
-  by (rule tensor_op_scaleC_right)
-
-lemma tensor_ell2_nonzero: \<open>a \<otimes>\<^sub>s b \<noteq> 0\<close> if \<open>a \<noteq> 0\<close> and \<open>b \<noteq> 0\<close>
-  apply (use that in transfer)
-  apply auto
-  by (metis mult_eq_0_iff old.prod.case)
 
 lemma tensor_op_nonzero:
   fixes a :: \<open>'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'c ell2\<close> and b :: \<open>'b ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2\<close>
@@ -520,8 +712,6 @@ proof (rule injI, rule ccontr)
   with eq show False
     by auto
 qed
-
-
 
 lemma inj_tensor_left: \<open>inj (\<lambda>a::'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'c ell2. a \<otimes>\<^sub>o b)\<close> if \<open>b \<noteq> 0\<close> for b :: \<open>'b ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2\<close>
 proof (rule injI, rule ccontr)
@@ -622,12 +812,15 @@ next
     by auto
 qed
 
+lemma clinear_tensor_left[simp]: \<open>clinear (\<lambda>a. a \<otimes>\<^sub>o b :: _ ell2 \<Rightarrow>\<^sub>C\<^sub>L _ ell2)\<close>
+  apply (rule clinearI)
+   apply (rule tensor_op_left_add)
+  by (rule tensor_op_scaleC_left)
 
-lemma tensor_ell2_0_left[simp]: \<open>tensor_ell2 0 x = 0\<close>
-  apply transfer by auto
-
-lemma tensor_ell2_0_right[simp]: \<open>tensor_ell2 x 0 = 0\<close>
-  apply transfer by auto
+lemma clinear_tensor_right[simp]: \<open>clinear (\<lambda>b. a \<otimes>\<^sub>o b :: _ ell2 \<Rightarrow>\<^sub>C\<^sub>L _ ell2)\<close>
+  apply (rule clinearI)
+   apply (rule tensor_op_right_add)
+  by (rule tensor_op_scaleC_right)
 
 lemma tensor_op_0_left[simp]: \<open>tensor_op 0 x = (0 :: ('a*'b) ell2 \<Rightarrow>\<^sub>C\<^sub>L ('c*'d) ell2)\<close>
   apply (rule equal_ket)
@@ -661,7 +854,8 @@ proof (rule bijI)
       by simp
     then show \<open>\<exists>x\<in>Collect has_ell2_norm. (\<lambda>(i, j). \<psi> i * x j) = \<phi>\<close>
       apply (rule bexI[where x=x])
-      by simp
+      (* by simp *)
+      sorry
   qed
 
   then show \<open>surj (\<lambda>x::'b ell2. (\<psi> :: 'a::CARD_1 ell2) \<otimes>\<^sub>s x)\<close>
@@ -696,10 +890,6 @@ proof (rule bijI)
     unfolding t_def using assms by (rule inj_tensor_right)
 qed
 
-lemma swap_ell2_selfinv[simp]: \<open>swap_ell2 o\<^sub>C\<^sub>L swap_ell2 = id_cblinfun\<close>
-  apply (rule tensor_ell2_extensionality)
-  by auto
-
 lemma bij_tensor_op_one_dim_right:
   assumes \<open>b \<noteq> 0\<close>
   shows \<open>bij (\<lambda>x::'c ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2. x \<otimes>\<^sub>o (b :: 'a::{CARD_1,enum} ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b::{CARD_1,enum} ell2))\<close>
@@ -727,11 +917,10 @@ qed
 lemma overlapping_tensor:
   fixes a23 :: \<open>('a2*'a3) ell2 \<Rightarrow>\<^sub>C\<^sub>L ('b2*'b3) ell2\<close>
     and b12 :: \<open>('a1*'a2) ell2 \<Rightarrow>\<^sub>C\<^sub>L ('b1*'b2) ell2\<close>
-  assumes eq: \<open>butterfly \<psi> \<psi>' \<otimes>\<^sub>o a23 = assoc_ell2 o\<^sub>C\<^sub>L (b12 \<otimes>\<^sub>o butterfly \<phi> \<phi>') o\<^sub>C\<^sub>L assoc_ell2'\<close>
+  assumes eq: \<open>butterfly \<psi> \<psi>' \<otimes>\<^sub>o a23 = assoc_ell2 o\<^sub>C\<^sub>L (b12 \<otimes>\<^sub>o butterfly \<phi> \<phi>') o\<^sub>C\<^sub>L assoc_ell2*\<close>
   assumes \<open>\<psi> \<noteq> 0\<close> \<open>\<psi>' \<noteq> 0\<close> \<open>\<phi> \<noteq> 0\<close> \<open>\<phi>' \<noteq> 0\<close>
   shows \<open>\<exists>c. butterfly \<psi> \<psi>' \<otimes>\<^sub>o a23 = butterfly \<psi> \<psi>' \<otimes>\<^sub>o c \<otimes>\<^sub>o butterfly \<phi> \<phi>'\<close>
 proof -
-  note [[show_types]]
   let ?id1 = \<open>id_cblinfun :: unit ell2 \<Rightarrow>\<^sub>C\<^sub>L unit ell2\<close>
   note id_cblinfun_eq_1[simp del]
   define d where \<open>d = butterfly \<psi> \<psi>' \<otimes>\<^sub>o a23\<close>
@@ -770,10 +959,10 @@ proof -
   define c :: \<open>'a2 ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b2 ell2\<close>
     where \<open>c = c'' /\<^sub>C norm \<psi> /\<^sub>C norm \<psi>' /\<^sub>C norm \<phi> /\<^sub>C norm \<phi>'\<close>
 
-  have aux: \<open>assoc_ell2' o\<^sub>C\<^sub>L (assoc_ell2 o\<^sub>C\<^sub>L x o\<^sub>C\<^sub>L assoc_ell2') o\<^sub>C\<^sub>L assoc_ell2 = x\<close> for x
+  have aux: \<open>assoc_ell2* o\<^sub>C\<^sub>L (assoc_ell2 o\<^sub>C\<^sub>L x o\<^sub>C\<^sub>L assoc_ell2*) o\<^sub>C\<^sub>L assoc_ell2 = x\<close> for x
     apply (simp add: cblinfun_assoc_left)
     by (simp add: cblinfun_assoc_right)
-  have aux2: \<open>(assoc_ell2 o\<^sub>C\<^sub>L ((x \<otimes>\<^sub>o y) \<otimes>\<^sub>o z) o\<^sub>C\<^sub>L assoc_ell2') = x \<otimes>\<^sub>o (y \<otimes>\<^sub>o z)\<close> for x y z
+  have aux2: \<open>(assoc_ell2 o\<^sub>C\<^sub>L ((x \<otimes>\<^sub>o y) \<otimes>\<^sub>o z) o\<^sub>C\<^sub>L assoc_ell2*) = x \<otimes>\<^sub>o (y \<otimes>\<^sub>o z)\<close> for x y z
     apply (rule equal_ket, rename_tac xyz)
     apply (case_tac xyz, hypsubst_thin)
     by (simp flip: tensor_ell2_ket add: assoc_ell2'_tensor assoc_ell2_tensor tensor_op_ell2)
@@ -781,18 +970,18 @@ proof -
   have \<open>d = (butterfly \<psi>\<^sub>n \<psi>\<^sub>n \<otimes>\<^sub>o id_cblinfun) o\<^sub>C\<^sub>L d o\<^sub>C\<^sub>L (butterfly \<psi>\<^sub>n' \<psi>\<^sub>n' \<otimes>\<^sub>o id_cblinfun)\<close>
     by (auto simp: d_def n1[symmetric] comp_tensor_op cnorm_eq_1[THEN iffD1])
   also have \<open>\<dots> = (butterfly \<psi>\<^sub>n \<psi>\<^sub>n \<otimes>\<^sub>o id_cblinfun) o\<^sub>C\<^sub>L assoc_ell2 o\<^sub>C\<^sub>L (b12\<^sub>n \<otimes>\<^sub>o butterfly \<phi>\<^sub>n \<phi>\<^sub>n')
-                  o\<^sub>C\<^sub>L assoc_ell2' o\<^sub>C\<^sub>L (butterfly \<psi>\<^sub>n' \<psi>\<^sub>n' \<otimes>\<^sub>o id_cblinfun)\<close>
+                  o\<^sub>C\<^sub>L assoc_ell2* o\<^sub>C\<^sub>L (butterfly \<psi>\<^sub>n' \<psi>\<^sub>n' \<otimes>\<^sub>o id_cblinfun)\<close>
     by (auto simp: d_def eq n2 cblinfun_assoc_left)
   also have \<open>\<dots> = (butterfly \<psi>\<^sub>n \<psi>\<^sub>n \<otimes>\<^sub>o id_cblinfun) o\<^sub>C\<^sub>L assoc_ell2 o\<^sub>C\<^sub>L 
                ((id_cblinfun \<otimes>\<^sub>o butterfly \<phi>\<^sub>n \<phi>\<^sub>n) o\<^sub>C\<^sub>L (b12\<^sub>n \<otimes>\<^sub>o butterfly \<phi>\<^sub>n \<phi>\<^sub>n') o\<^sub>C\<^sub>L (id_cblinfun \<otimes>\<^sub>o butterfly \<phi>\<^sub>n' \<phi>\<^sub>n'))
-               o\<^sub>C\<^sub>L assoc_ell2' o\<^sub>C\<^sub>L (butterfly \<psi>\<^sub>n' \<psi>\<^sub>n' \<otimes>\<^sub>o id_cblinfun)\<close>
+               o\<^sub>C\<^sub>L assoc_ell2* o\<^sub>C\<^sub>L (butterfly \<psi>\<^sub>n' \<psi>\<^sub>n' \<otimes>\<^sub>o id_cblinfun)\<close>
     by (auto simp: comp_tensor_op cnorm_eq_1[THEN iffD1])
   also have \<open>\<dots> = (butterfly \<psi>\<^sub>n \<psi>\<^sub>n \<otimes>\<^sub>o id_cblinfun) o\<^sub>C\<^sub>L assoc_ell2 o\<^sub>C\<^sub>L 
-               ((id_cblinfun \<otimes>\<^sub>o butterfly \<phi>\<^sub>n \<phi>\<^sub>n) o\<^sub>C\<^sub>L (assoc_ell2' o\<^sub>C\<^sub>L d o\<^sub>C\<^sub>L assoc_ell2) o\<^sub>C\<^sub>L (id_cblinfun \<otimes>\<^sub>o butterfly \<phi>\<^sub>n' \<phi>\<^sub>n'))
-               o\<^sub>C\<^sub>L assoc_ell2' o\<^sub>C\<^sub>L (butterfly \<psi>\<^sub>n' \<psi>\<^sub>n' \<otimes>\<^sub>o id_cblinfun)\<close>
+               ((id_cblinfun \<otimes>\<^sub>o butterfly \<phi>\<^sub>n \<phi>\<^sub>n) o\<^sub>C\<^sub>L (assoc_ell2* o\<^sub>C\<^sub>L d o\<^sub>C\<^sub>L assoc_ell2) o\<^sub>C\<^sub>L (id_cblinfun \<otimes>\<^sub>o butterfly \<phi>\<^sub>n' \<phi>\<^sub>n'))
+               o\<^sub>C\<^sub>L assoc_ell2* o\<^sub>C\<^sub>L (butterfly \<psi>\<^sub>n' \<psi>\<^sub>n' \<otimes>\<^sub>o id_cblinfun)\<close>
     by (auto simp: d_def n2 eq aux)
-  also have \<open>\<dots> = ((butterfly \<psi>\<^sub>n \<psi>\<^sub>n \<otimes>\<^sub>o id_cblinfun) o\<^sub>C\<^sub>L (assoc_ell2 o\<^sub>C\<^sub>L (id_cblinfun \<otimes>\<^sub>o butterfly \<phi>\<^sub>n \<phi>\<^sub>n) o\<^sub>C\<^sub>L assoc_ell2'))
-               o\<^sub>C\<^sub>L d o\<^sub>C\<^sub>L ((assoc_ell2 o\<^sub>C\<^sub>L (id_cblinfun \<otimes>\<^sub>o butterfly \<phi>\<^sub>n' \<phi>\<^sub>n') o\<^sub>C\<^sub>L assoc_ell2') o\<^sub>C\<^sub>L (butterfly \<psi>\<^sub>n' \<psi>\<^sub>n' \<otimes>\<^sub>o id_cblinfun))\<close>
+  also have \<open>\<dots> = ((butterfly \<psi>\<^sub>n \<psi>\<^sub>n \<otimes>\<^sub>o id_cblinfun) o\<^sub>C\<^sub>L (assoc_ell2 o\<^sub>C\<^sub>L (id_cblinfun \<otimes>\<^sub>o butterfly \<phi>\<^sub>n \<phi>\<^sub>n) o\<^sub>C\<^sub>L assoc_ell2*))
+               o\<^sub>C\<^sub>L d o\<^sub>C\<^sub>L ((assoc_ell2 o\<^sub>C\<^sub>L (id_cblinfun \<otimes>\<^sub>o butterfly \<phi>\<^sub>n' \<phi>\<^sub>n') o\<^sub>C\<^sub>L assoc_ell2*) o\<^sub>C\<^sub>L (butterfly \<psi>\<^sub>n' \<psi>\<^sub>n' \<otimes>\<^sub>o id_cblinfun))\<close>
     by (auto simp: sandwich_def cblinfun_assoc_left)
   also have \<open>\<dots> = (butterfly \<psi>\<^sub>n \<psi>\<^sub>n \<otimes>\<^sub>o id_cblinfun \<otimes>\<^sub>o butterfly \<phi>\<^sub>n \<phi>\<^sub>n)
                o\<^sub>C\<^sub>L d o\<^sub>C\<^sub>L (butterfly \<psi>\<^sub>n' \<psi>\<^sub>n' \<otimes>\<^sub>o id_cblinfun \<otimes>\<^sub>o butterfly \<phi>\<^sub>n' \<phi>\<^sub>n')\<close>
@@ -812,28 +1001,6 @@ proof -
   then show ?thesis
     by (auto simp: d_def)
 qed
-
-lemma norm_tensor_ell2: \<open>norm (a \<otimes>\<^sub>s b) = norm a * norm b\<close>
-  apply transfer
-  by (simp add: ell2_norm_finite sum_product sum.cartesian_product case_prod_beta
-      norm_mult power_mult_distrib flip: real_sqrt_mult)
-
-lemma bounded_cbilinear_tensor_ell2[bounded_cbilinear]: \<open>bounded_cbilinear (\<otimes>\<^sub>s)\<close>
-proof standard
-  fix a a' :: "'a ell2" and b b' :: "'b ell2" and r :: complex
-  show \<open>tensor_ell2 (a + a') b = tensor_ell2 a b + tensor_ell2 a' b\<close>
-    by (meson tensor_ell2_add1)
-  show \<open>tensor_ell2 a (b + b') = tensor_ell2 a b + tensor_ell2 a b'\<close>
-    by (simp add: tensor_ell2_add2)  
-  show \<open>tensor_ell2 (r *\<^sub>C a) b = r *\<^sub>C tensor_ell2 a b\<close>
-    by (simp add: tensor_ell2_scaleC1)
-  show \<open>tensor_ell2 a (r *\<^sub>C b) = r *\<^sub>C tensor_ell2 a b\<close>
-    by (simp add: tensor_ell2_scaleC2)
-  show \<open>\<exists>K. \<forall>a b. norm (tensor_ell2 a b) \<le> norm a * norm b * K \<close>
-    apply (rule exI[of _ 1])
-    by (simp add: norm_tensor_ell2)
-qed
-
 
 
 end
