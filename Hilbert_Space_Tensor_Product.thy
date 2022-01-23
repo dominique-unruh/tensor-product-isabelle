@@ -4,6 +4,7 @@ begin
 
 unbundle cblinfun_notation
 no_notation m_inv ("inv\<index> _" [81] 80)
+no_notation eq_closure_of ("closure'_of\<index>")
 
 subsection \<open>Tensor product on \<^typ>\<open>_ ell2\<close>\<close>
 
@@ -141,6 +142,39 @@ proof transfer
     by (metis ell2_norm_geq0 mult_nonneg_nonneg power2_eq_imp_eq power_mult_distrib)
 qed
 
+lemma tensor_ell2_dense:
+  fixes S :: \<open>'a ell2 set\<close> and T :: \<open>'b ell2 set\<close>
+  assumes \<open>closure (cspan S) = UNIV\<close> and \<open>closure (cspan T) = UNIV\<close>
+  shows \<open>closure (cspan {a\<otimes>\<^sub>sb | a b. a\<in>S \<and> b\<in>T}) = UNIV\<close>
+proof -
+  define ST where \<open>ST = {a\<otimes>\<^sub>sb | a b. a\<in>S \<and> b\<in>T}\<close>
+  from assms have 1: \<open>bounded_clinear F \<Longrightarrow> bounded_clinear G \<Longrightarrow> (\<forall>x\<in>S. F x = G x) \<Longrightarrow> F = G\<close> for F G :: \<open>'a ell2 \<Rightarrow> complex\<close>
+    using dense_span_separating[of S F G] by auto
+  from assms have 2: \<open>bounded_clinear F \<Longrightarrow> bounded_clinear G \<Longrightarrow> (\<forall>x\<in>T. F x = G x) \<Longrightarrow> F = G\<close> for F G :: \<open>'b ell2 \<Rightarrow> complex\<close>
+    using dense_span_separating[of T F G] by auto
+  have \<open>F = G\<close> 
+    if [simp]: \<open>bounded_clinear F\<close> \<open>bounded_clinear G\<close> and eq: \<open>\<forall>x\<in>ST. F x = G x\<close>
+    for F G :: \<open>('a\<times>'b) ell2 \<Rightarrow> complex\<close>
+  proof -
+    from eq have eq': \<open>F (s \<otimes>\<^sub>s t) = G (s \<otimes>\<^sub>s t)\<close> if \<open>s \<in> S\<close> and \<open>t \<in> T\<close> for s t
+      using ST_def that by blast
+    then have \<open>F (s \<otimes>\<^sub>s ket t) = G (s \<otimes>\<^sub>s ket t)\<close> if \<open>s \<in> S\<close> for s t
+      apply (rule_tac fun_cong[where x=\<open>ket t\<close>])
+      apply (rule 2)
+      using that by (auto simp add: bounded_clinear_compose bounded_clinear_tensor_ell21)
+    then have \<open>F (ket s \<otimes>\<^sub>s ket t) = G (ket s \<otimes>\<^sub>s ket t)\<close> for s t
+      apply (rule_tac fun_cong[where x=\<open>ket s\<close>])
+      apply (rule 1)
+      apply (auto simp add: bounded_clinear_compose bounded_clinear_tensor_ell21)
+      using that bounded_clinear_compose bounded_clinear_tensor_ell22 that by blast+
+    then show "F = G"
+      apply (rule_tac bounded_clinear_equal_ket)
+      by auto
+  qed
+  then show \<open>closure (cspan ST) = UNIV\<close>
+    using separating_dense_span by blast
+qed
+
 definition assoc_ell2 :: \<open>(('a\<times>'b)\<times>'c) ell2 \<Rightarrow>\<^sub>C\<^sub>L ('a\<times>('b\<times>'c)) ell2\<close> where
   \<open>assoc_ell2 = classical_operator (Some o (\<lambda>((a,b),c). (a,(b,c))))\<close>
 
@@ -150,20 +184,26 @@ lemma unitary_assoc_ell2[simp]: \<open>unitary assoc_ell2\<close>
   apply (rule o_bij[of \<open>(\<lambda>(a,(b,c)). ((a,b),c))\<close>])
   by auto
 
-lemma assoc_ell2_tensor: \<open>assoc_ell2 *\<^sub>V tensor_ell2 (tensor_ell2 a b) c = tensor_ell2 a (tensor_ell2 b c)\<close>
-(*   apply (rule clinear_equal_ket[THEN fun_cong, where x=a])
-    apply (simp add: cblinfun.add_right clinearI tensor_ell2_add1 tensor_ell2_scaleC1)
-   apply (simp add: clinear_tensor_ell22)
-  apply (rule clinear_equal_ket[THEN fun_cong, where x=b])
-    apply (simp add: cblinfun.add_right clinearI tensor_ell2_add1 tensor_ell2_add2 tensor_ell2_scaleC1 tensor_ell2_scaleC2)
-   apply (simp add: clinearI tensor_ell2_add1 tensor_ell2_add2 tensor_ell2_scaleC1 tensor_ell2_scaleC2)
-  apply (rule clinear_equal_ket[THEN fun_cong, where x=c])
-    apply (simp add: cblinfun.add_right clinearI tensor_ell2_add2 tensor_ell2_scaleC2)
-   apply (simp add: clinearI tensor_ell2_add2 tensor_ell2_scaleC2)
-  unfolding assoc_ell2.rep_eq
-  apply transfer
-  by auto *)
-  sorry
+lemma assoc_ell2_tensor: \<open>assoc_ell2 *\<^sub>V ((a \<otimes>\<^sub>s b) \<otimes>\<^sub>s c) = (a \<otimes>\<^sub>s (b \<otimes>\<^sub>s c))\<close>
+proof -
+  note [simp] = bounded_clinear_compose[OF bounded_clinear_tensor_ell21]
+    bounded_clinear_compose[OF bounded_clinear_tensor_ell22]
+    bounded_clinear_cblinfun_apply
+  have \<open>assoc_ell2 *\<^sub>V ((ket a \<otimes>\<^sub>s ket b) \<otimes>\<^sub>s ket c) = (ket a \<otimes>\<^sub>s (ket b \<otimes>\<^sub>s ket c))\<close> for a :: 'a and b :: 'b and c :: 'c
+    by (simp add: inj_def assoc_ell2_def classical_operator_ket classical_operator_exists_inj)
+  then have \<open>assoc_ell2 *\<^sub>V ((ket a \<otimes>\<^sub>s ket b) \<otimes>\<^sub>s c) = (ket a \<otimes>\<^sub>s (ket b \<otimes>\<^sub>s c))\<close> for a :: 'a and b :: 'b
+    apply (rule_tac fun_cong[where x=c])
+    apply (rule_tac bounded_clinear_equal_ket)
+    by auto
+  then have \<open>assoc_ell2 *\<^sub>V ((ket a \<otimes>\<^sub>s b) \<otimes>\<^sub>s c) = (ket a \<otimes>\<^sub>s (b \<otimes>\<^sub>s c))\<close> for a :: 'a
+    apply (rule_tac fun_cong[where x=b])
+    apply (rule_tac bounded_clinear_equal_ket)
+    by auto
+  then show \<open>assoc_ell2 *\<^sub>V ((a \<otimes>\<^sub>s b) \<otimes>\<^sub>s c) = (a \<otimes>\<^sub>s (b \<otimes>\<^sub>s c))\<close>
+    apply (rule_tac fun_cong[where x=a])
+    apply (rule_tac bounded_clinear_equal_ket)
+    by auto
+qed
 
 lemma assoc_ell2'_tensor: \<open>assoc_ell2* *\<^sub>V tensor_ell2 a (tensor_ell2 b c) = tensor_ell2 (tensor_ell2 a b) c\<close>
   by (metis (no_types, opaque_lifting) assoc_ell2_tensor cblinfun_apply_cblinfun_compose id_cblinfun.rep_eq unitaryD1 unitary_assoc_ell2)
@@ -176,17 +216,22 @@ lemma unitary_swap_ell2[simp]: \<open>unitary swap_ell2\<close>
   apply (rule unitary_classical_operator)
   by auto
 
-lemma swap_ell2_tensor[simp]: \<open>swap_ell2 *\<^sub>V tensor_ell2 a b = tensor_ell2 b a\<close>
-(*   apply (rule clinear_equal_ket[THEN fun_cong, where x=a])
-    apply (simp add: cblinfun.add_right clinearI tensor_ell2_add1 tensor_ell2_scaleC1)
-   apply (simp add: clinear_tensor_ell21)
-  apply (rule clinear_equal_ket[THEN fun_cong, where x=b])
-    apply (simp add: cblinfun.add_right clinearI tensor_ell2_add1 tensor_ell2_add2 tensor_ell2_scaleC1 tensor_ell2_scaleC2)
-   apply (simp add: clinearI tensor_ell2_add1 tensor_ell2_add2 tensor_ell2_scaleC1 tensor_ell2_scaleC2)
-  unfolding swap_ell2.rep_eq
-  apply transfer
-  by auto *)
-  sorry
+lemma swap_ell2_tensor[simp]: \<open>swap_ell2 *\<^sub>V (a \<otimes>\<^sub>s b) = b \<otimes>\<^sub>s a\<close> for a :: \<open>'a ell2\<close> and b :: \<open>'b ell2\<close>
+proof -
+  note [simp] = bounded_clinear_compose[OF bounded_clinear_tensor_ell21]
+    bounded_clinear_compose[OF bounded_clinear_tensor_ell22]
+    bounded_clinear_cblinfun_apply
+  have \<open>swap_ell2 *\<^sub>V (ket a \<otimes>\<^sub>s ket b) = (ket b \<otimes>\<^sub>s ket a)\<close> for a :: 'a and b :: 'b
+    by (simp add: inj_def swap_ell2_def classical_operator_ket classical_operator_exists_inj)
+  then have \<open>swap_ell2 *\<^sub>V (ket a \<otimes>\<^sub>s b) = (b \<otimes>\<^sub>s ket a)\<close> for a :: 'a
+    apply (rule_tac fun_cong[where x=b])
+    apply (rule_tac bounded_clinear_equal_ket)
+    by auto
+  then show \<open>swap_ell2 *\<^sub>V (a \<otimes>\<^sub>s b) = (b \<otimes>\<^sub>s a)\<close>
+    apply (rule_tac fun_cong[where x=a])
+    apply (rule_tac bounded_clinear_equal_ket)
+    by auto
+qed
 
 lemma inv_prod_swap[simp]: \<open>inv prod.swap = prod.swap\<close>
   by (simp add: inv_unique_comp)
@@ -230,7 +275,7 @@ definition tensor_op :: \<open>('a ell2, 'b ell2) cblinfun \<Rightarrow> ('c ell
       \<Rightarrow> (('a\<times>'c) ell2, ('b\<times>'d) ell2) cblinfun\<close> (infixr "\<otimes>\<^sub>o" 70) where
   \<open>tensor_op M N = cblinfun_extension (range ket) (\<lambda>k. case (inv ket k) of (x,y) \<Rightarrow> tensor_ell2 (M *\<^sub>V ket x) (N *\<^sub>V ket y))\<close>
 
-(* Vaguely following Takesaki, Section IV.1 *)
+(* Vaguely following Takesaki, Section IV.1 *) (* TODO bibtex *)
 lemma  
   fixes a :: \<open>'a\<close> and b :: \<open>'b\<close> and c :: \<open>'c\<close> and d :: \<open>'d\<close> and M :: \<open>'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b ell2\<close> and N :: \<open>'c ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2\<close>
   shows tensor_op_ell2: \<open>(M \<otimes>\<^sub>o N) *\<^sub>V (\<psi> \<otimes>\<^sub>s \<phi>) = (M *\<^sub>V \<psi>) \<otimes>\<^sub>s (N *\<^sub>V \<phi>)\<close>
@@ -526,33 +571,639 @@ lemma tensor_op_scaleC_right: \<open>b \<otimes>\<^sub>o (c *\<^sub>C x) = c *\<
   for x :: \<open>'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'c ell2\<close> and b :: \<open>'b ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2\<close>
   by (auto intro!: equal_ket simp: tensor_op_ket tensor_ell2_scaleC2)
 
-lemma tensor_op_bounded_cbilinear: \<open>bounded_cbilinear (tensor_op :: 'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b ell2
-                                                 \<Rightarrow> 'c ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2 \<Rightarrow> _)\<close>
+lemma tensor_op_bounded_cbilinear[simp]: \<open>bounded_cbilinear tensor_op\<close>
   by (auto intro!: bounded_cbilinear.intro exI[of _ 1]
       simp: tensor_op_left_add tensor_op_right_add tensor_op_scaleC_left tensor_op_scaleC_right tensor_op_norm)
 
-(* lemma tensor_op_cbilinear: \<open>cbilinear (tensor_op :: 'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b ell2
-                                                 \<Rightarrow> 'c ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2 \<Rightarrow> _)\<close> *)
+lemma tensor_op_cbilinear[simp]: \<open>cbilinear tensor_op\<close>
+  by (simp add: bounded_cbilinear.add_left bounded_cbilinear.add_right cbilinear_def clinearI tensor_op_scaleC_left tensor_op_scaleC_right)
 
-lemma tensor_butter: \<open>tensor_op (butterket i j) (butterket k l) = butterket (i,k) (j,l)\<close>
+lemma tensor_butter: \<open>butterket i j \<otimes>\<^sub>o butterket k l = butterket (i,k) (j,l)\<close>
   for i :: "_" and j :: "_" and k :: "_" and l :: "_"
   apply (rule equal_ket, rename_tac x, case_tac x)
-  apply (auto simp flip: tensor_ell2_ket simp: cblinfun_apply_cblinfun_compose tensor_op_ell2 butterfly_def)
+  apply (auto simp flip: tensor_ell2_ket simp: tensor_op_ell2 butterfly_def)
   by (auto simp: tensor_ell2_scaleC1 tensor_ell2_scaleC2)
 
-lemma cspan_tensor_op: \<open>cspan {tensor_op (butterket i j) (butterket k l)| i (j::_) k (l::_). True} = UNIV\<close>
-(*   unfolding tensor_butter
+lemma cspan_tensor_op_butter: \<open>cspan {tensor_op (butterket i j) (butterket k l)| (i::_::finite) (j::_::finite) (k::_::finite) (l::_::finite). True} = UNIV\<close>
+  unfolding tensor_butter
   apply (subst cspan_butterfly_ket[symmetric])
-  by (metis surj_pair) x *)
-  sorry
+  by (metis surj_pair)
 
-lemma cindependent_tensor_op: \<open>cindependent {tensor_op (butterket i j) (butterket k l)| i (j::_) k (l::_). True}\<close>
+lemma cindependent_tensor_op_butter: \<open>cindependent {tensor_op (butterket i j) (butterket k l)| i j k l. True}\<close>
   unfolding tensor_butter
   using cindependent_butterfly_ket
   by (smt (z3) Collect_mono_iff complex_vector.independent_mono)
 
-lemma tensor_extensionality:
-  fixes F G :: \<open>((('a \<times> 'b) ell2) \<Rightarrow>\<^sub>C\<^sub>L (('c \<times> 'd) ell2)) \<Rightarrow> 'e::complex_vector\<close>
+lift_definition right_amplification :: \<open>('a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b ell2) \<Rightarrow>\<^sub>C\<^sub>L (('a\<times>'c) ell2 \<Rightarrow>\<^sub>C\<^sub>L ('b\<times>'c) ell2)\<close> is
+  \<open>\<lambda>a. a \<otimes>\<^sub>o id_cblinfun\<close>
+  by (simp add: bounded_cbilinear.bounded_clinear_left)
+
+lift_definition left_amplification :: \<open>('a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b ell2) \<Rightarrow>\<^sub>C\<^sub>L (('c\<times>'a) ell2 \<Rightarrow>\<^sub>C\<^sub>L ('c\<times>'b) ell2)\<close> is
+  \<open>\<lambda>a. id_cblinfun \<otimes>\<^sub>o a\<close>
+  by (simp add: bounded_cbilinear.bounded_clinear_right)
+
+lift_definition tensor_ell2_left :: \<open>'a ell2 \<Rightarrow> ('b ell2 \<Rightarrow>\<^sub>C\<^sub>L ('a\<times>'b) ell2)\<close> is
+  \<open>\<lambda>\<psi> \<phi>. \<psi> \<otimes>\<^sub>s \<phi>\<close>
+  by (simp add: bounded_cbilinear.bounded_clinear_right bounded_cbilinear_tensor_ell2)
+
+lift_definition tensor_ell2_right :: \<open>'a ell2 \<Rightarrow> ('b ell2 \<Rightarrow>\<^sub>C\<^sub>L ('b\<times>'a) ell2)\<close> is
+  \<open>\<lambda>\<psi> \<phi>. \<phi> \<otimes>\<^sub>s \<psi>\<close>
+  by (simp add: bounded_clinear_tensor_ell22)
+
+typedef (overloaded) ('a,'b) cblinfun_sot = \<open>UNIV :: ('a::complex_normed_vector \<Rightarrow>\<^sub>C\<^sub>L 'b::complex_normed_vector) set\<close> ..
+setup_lifting type_definition_cblinfun_sot
+
+instantiation cblinfun_sot :: (complex_normed_vector, complex_normed_vector) complex_vector begin
+lift_definition scaleC_cblinfun_sot :: \<open>complex \<Rightarrow> ('a, 'b) cblinfun_sot \<Rightarrow> ('a, 'b) cblinfun_sot\<close> 
+  is \<open>scaleC\<close> .
+lift_definition uminus_cblinfun_sot :: \<open>('a, 'b) cblinfun_sot \<Rightarrow> ('a, 'b) cblinfun_sot\<close> is uminus .
+lift_definition zero_cblinfun_sot :: \<open>('a, 'b) cblinfun_sot\<close> is 0 .
+lift_definition minus_cblinfun_sot :: \<open>('a, 'b) cblinfun_sot \<Rightarrow> ('a, 'b) cblinfun_sot \<Rightarrow> ('a, 'b) cblinfun_sot\<close> is minus .
+lift_definition plus_cblinfun_sot :: \<open>('a, 'b) cblinfun_sot \<Rightarrow> ('a, 'b) cblinfun_sot \<Rightarrow> ('a, 'b) cblinfun_sot\<close> is plus .
+lift_definition scaleR_cblinfun_sot :: \<open>real \<Rightarrow> ('a, 'b) cblinfun_sot \<Rightarrow> ('a, 'b) cblinfun_sot\<close> is scaleR .
+instance
+  apply (intro_classes; transfer)
+  by (auto simp add: scaleR_scaleC scaleC_add_right scaleC_add_left)
+end
+
+instantiation cblinfun_sot :: (complex_normed_vector, complex_normed_vector) topological_space begin
+lift_definition open_cblinfun_sot :: \<open>('a, 'b) cblinfun_sot set \<Rightarrow> bool\<close> is \<open>openin cstrong_operator_topology\<close> .
+instance
+proof intro_classes
+  show \<open>open (UNIV :: ('a,'b) cblinfun_sot set)\<close>
+    apply transfer
+    by (metis cstrong_operator_topology_topspace openin_topspace)
+  show \<open>open S \<Longrightarrow> open T \<Longrightarrow> open (S \<inter> T)\<close> for S T :: \<open>('a,'b) cblinfun_sot set\<close>
+    apply transfer by auto
+  show \<open>\<forall>S\<in>K. open S \<Longrightarrow> open (\<Union> K)\<close> for K :: \<open>('a,'b) cblinfun_sot set set\<close>
+    apply transfer by auto
+qed
+end
+
+lemma transfer_nhds_cstrong_operator_topology[transfer_rule]:
+  includes lifting_syntax
+  shows \<open>(cr_cblinfun_sot ===> rel_filter cr_cblinfun_sot) (nhdsin cstrong_operator_topology) nhds\<close>
+  unfolding nhds_def nhdsin_def
+  apply (simp add: cstrong_operator_topology_topspace)
+  by transfer_prover
+
+(* lemma [transfer_rule]:
+  includes lifting_syntax
+  assumes [transfer_rule]: \<open>bi_unique S\<close>
+  shows \<open>(rel_filter S ===> rel_filter S ===> (=)) (\<le>) (\<le>)\<close>
+  unfolding le_filter_def
+  by transfer_prover *)
+
+(* TODO move *)
+lemma limitin_pullback_topology: 
+  \<open>limitin (pullback_topology A g T) f l F \<longleftrightarrow> l\<in>A \<and> (\<forall>\<^sub>F x in F. f x \<in> A) \<and> limitin T (g o f) (g l) F\<close>
+  apply (simp add: topspace_pullback_topology limitin_def openin_pullback_topology imp_ex flip: ex_simps(1))
+  apply rule
+   apply simp
+   apply safe
+  using eventually_mono apply fastforce
+   apply (simp add: eventually_conj_iff)
+  by (simp add: eventually_conj_iff)
+
+lemma limitin_cstrong_operator_topology: 
+  \<open>limitin cstrong_operator_topology f l F \<longleftrightarrow> (((*\<^sub>V) \<circ> f) \<longlongrightarrow> (*\<^sub>V) l) F\<close>
+  by (simp add: cstrong_operator_topology_def limitin_pullback_topology)
+
+lemma tendsto_coordinatewise: \<open>(f \<longlongrightarrow> l) F \<longleftrightarrow> (\<forall>x. ((\<lambda>i. f i x) \<longlongrightarrow> l x) F)\<close>
+proof (intro iffI allI)
+  assume asm: \<open>(f \<longlongrightarrow> l) F\<close>
+  then show \<open>((\<lambda>i. f i x) \<longlongrightarrow> l x) F\<close> for x
+    apply (rule continuous_on_tendsto_compose[where s=UNIV, rotated])
+    by auto
+next
+  assume asm: \<open>(\<forall>x. ((\<lambda>i. f i x) \<longlongrightarrow> l x) F)\<close>
+  show \<open>(f \<longlongrightarrow> l) F\<close>
+  proof (unfold tendsto_def, intro allI impI)
+    fix S assume \<open>open S\<close> and \<open>l \<in> S\<close>
+    from product_topology_open_contains_basis[OF \<open>open S\<close>[unfolded open_fun_def] \<open>l \<in> S\<close>]
+    obtain U where lU: \<open>l \<in> Pi UNIV U\<close> and openU: \<open>\<And>x. open (U x)\<close> and finiteD: \<open>finite {x. U x \<noteq> UNIV}\<close> and US: \<open>Pi UNIV U \<subseteq> S\<close>
+      by (auto simp add: PiE_UNIV_domain)
+
+    define D where \<open>D = {x. U x \<noteq> UNIV}\<close>
+    with finiteD have finiteD: \<open>finite D\<close>
+      by simp
+    have PiUNIV: \<open>t \<in> Pi UNIV U \<longleftrightarrow> (\<forall>x\<in>D. t x \<in> U x)\<close> for t
+      using D_def by blast
+
+    have f_Ui: \<open>\<forall>\<^sub>F i in F. f i x \<in> U x\<close> for x
+      using asm[rule_format, of x] openU[of x]
+      using lU topological_tendstoD by fastforce
+
+    have \<open>\<forall>\<^sub>F x in F. \<forall>i\<in>D. f x i \<in> U i\<close>
+      using finiteD
+    proof induction
+      case empty
+      then show ?case
+        by simp
+    next
+      case (insert x F)
+      with f_Ui show ?case
+        by (simp add: eventually_conj_iff)
+    qed
+
+    then show \<open>\<forall>\<^sub>F x in F. f x \<in> S\<close>
+      using US by (simp add: PiUNIV eventually_mono in_mono)
+  qed
+qed
+
+lemma filterlim_parametric[transfer_rule]: 
+  includes lifting_syntax
+  assumes [transfer_rule]: \<open>bi_unique S\<close>
+  shows \<open>((R ===> S) ===> rel_filter S ===> rel_filter R ===> (=)) filterlim filterlim\<close>
+  using filtermap_parametric[transfer_rule] le_filter_parametric[transfer_rule] apply fail?
+  unfolding filterlim_def
+  by transfer_prover
+
+lemma transfer_tendsto_cstrong_operator_topology[transfer_rule]: 
+  includes lifting_syntax
+  shows \<open>((R ===> cr_cblinfun_sot) ===> cr_cblinfun_sot ===> rel_filter R ===> (=)) (limitin cstrong_operator_topology) tendsto\<close>
+  apply transfer_prover_start
+    apply transfer_step
+   apply transfer_step
+  oops
+
+lemma filterlim_cstrong_operator_topology: \<open>filterlim f (nhdsin cstrong_operator_topology l) = limitin cstrong_operator_topology f l\<close>
+  unfolding limitin_def filterlim_def eventually_filtermap le_filter_def eventually_nhdsin cstrong_operator_topology_topspace
+  apply (intro ext)
+  apply safe
+    apply simp
+   apply meson
+  by (metis (mono_tags, lifting) eventually_mono)
+
+instance cblinfun_sot :: (complex_normed_vector, complex_normed_vector) t2_space
+  apply intro_classes
+  apply transfer
+  apply auto
+  sorry
+
+definition rel_topology :: \<open>('a \<Rightarrow> 'b \<Rightarrow> bool) \<Rightarrow> ('a topology \<Rightarrow> 'b topology \<Rightarrow> bool)\<close> where
+  \<open>rel_topology R S T \<longleftrightarrow> (rel_fun (rel_set R) (=)) (openin S) (openin T)\<close>
+
+lemma transfer_euclidean_cstrong_operator_topology[transfer_rule]:
+  includes lifting_syntax
+  shows \<open>(rel_topology cr_cblinfun_sot) cstrong_operator_topology euclidean\<close>
+  apply (auto simp: rel_topology_def cr_cblinfun_sot_def rel_set_def
+intro!: rel_funI)
+   apply transfer
+   apply auto
+   apply (meson openin_subopen subsetI)
+  apply transfer
+  apply auto
+  by (meson openin_subopen subsetI)
+
+lemma [transfer_rule]:
+  includes lifting_syntax
+  (* assumes [transfer_rule]: \<open>bi_unique S\<close> *)
+  shows \<open>(rel_topology R ===> rel_set R ===> (=)) openin openin\<close>
+  by (auto simp add: rel_fun_def rel_topology_def)
+
+lemma [transfer_rule]:
+  includes lifting_syntax
+  assumes [transfer_rule]: \<open>bi_total R\<close>
+  shows \<open>(rel_topology R ===> rel_set R) topspace topspace\<close>
+  unfolding topspace_def
+  by transfer_prover
+
+lemma [transfer_rule]:
+  includes lifting_syntax
+  assumes [transfer_rule]: \<open>bi_total S\<close>
+  assumes [transfer_rule]: \<open>bi_unique S\<close>
+  assumes [transfer_rule]: \<open>bi_total R\<close>
+  assumes [transfer_rule]: \<open>bi_unique R\<close>
+  shows \<open>(rel_topology R ===> rel_topology S ===> (R ===> S) ===> (=)) continuous_map continuous_map\<close>
+  unfolding continuous_map_def
+  by transfer_prover
+
+lemma openin_cstrong_operator_topology: \<open>openin cstrong_operator_topology U \<longleftrightarrow> (\<exists>V. open V \<and> U = (*\<^sub>V) -` V)\<close>
+  by (simp add: cstrong_operator_topology_def openin_pullback_topology)
+
+lemma aux1: 
+  assumes \<open>continuous_on UNIV f\<close>
+  shows \<open>filtercomap f (nhds (f x)) \<ge> nhds x\<close>
+  apply ( simp add: le_filter_def filter_eq_iff eventually_filtercomap  
+eventually_inf_principal eventually_nhds
+)
+  apply safe
+   apply (rule_tac x=\<open>f -` S\<close> in exI)
+   apply safe
+  using assms open_vimage apply blast
+    apply blast
+  apply blast
+  by -
+
+(* lemma aux2: 
+  (* assumes \<open>continuous_on UNIV f\<close> *)
+  assumes \<open>inj f\<close>
+  shows \<open>filtercomap f (nhds (f x)) \<le> nhds x \<sqinter> principal XXX\<close>
+  apply ( simp add: le_filter_def filter_eq_iff eventually_filtercomap  
+eventually_inf_principal eventually_nhds
+)
+  apply safe
+  apply (rule_tac x=\<open>P o inv f\<close> in exI)
+  apply autox *)
+
+
+lemma cstrong_operator_topology_plus_cont: \<open>LIM x nhdsin cstrong_operator_topology a \<times>\<^sub>F nhdsin cstrong_operator_topology b.
+            fst x + snd x :> nhdsin cstrong_operator_topology (a + b)\<close>
+proof -
+  have 1: \<open>nhdsin cstrong_operator_topology a = filtercomap cblinfun_apply (nhds (cblinfun_apply a))\<close>
+    for a :: \<open>'a \<Rightarrow>\<^sub>C\<^sub>L 'b\<close>
+    by (auto simp add: filter_eq_iff eventually_filtercomap eventually_nhds eventually_nhdsin
+        cstrong_operator_topology_topspace openin_cstrong_operator_topology)
+
+  have \<open>(((*\<^sub>V) \<circ> (\<lambda>x. fst x + snd x)) \<longlongrightarrow> (*\<^sub>V) (a + b))
+     (nhdsin cstrong_operator_topology a \<times>\<^sub>F nhdsin cstrong_operator_topology b)\<close>
+  proof (unfold tendsto_def, intro allI impI)
+    fix S assume \<open>open S\<close> and \<open>(*\<^sub>V) (a + b) \<in> S\<close>
+    obtain U where \<open>(*\<^sub>V) (a + b) \<in> Pi\<^sub>E UNIV U\<close> and openU: \<open>\<forall>i. openin euclidean (U i)\<close>
+      and finiteD: \<open>finite {i. U i \<noteq> topspace euclidean}\<close> and US: \<open>Pi\<^sub>E UNIV U \<subseteq> S\<close>
+      using product_topology_open_contains_basis[OF \<open>open S\<close>[unfolded open_fun_def] \<open>(*\<^sub>V) (a + b) \<in> S\<close>]
+      by auto
+
+    define D where \<open>D = {i. U i \<noteq> UNIV}\<close>
+    with finiteD have \<open>finite D\<close>
+      by auto
+
+    from openU have openU: \<open>open (U i)\<close> for i
+      by auto
+
+    have \<open>a *\<^sub>V i + b *\<^sub>V i \<in> U i\<close> for i
+      by (metis PiE_mem \<open>(*\<^sub>V) (a + b) \<in> Pi\<^sub>E UNIV U\<close> iso_tuple_UNIV_I plus_cblinfun.rep_eq)
+
+    then have \<open>\<forall>\<^sub>F x in nhds (a *\<^sub>V i) \<times>\<^sub>F nhds (b *\<^sub>V i).
+            (fst x + snd x) \<in> U i\<close> for i
+      using openU tendsto_add_Pair tendsto_def by fastforce
+
+(*     then obtain Ua Ub where \<open>open (Ua i)\<close> \<open>open (Ub i)\<close> \<open>a *\<^sub>V i \<in> Ua i\<close> \<open>a *\<^sub>V i \<in> Ub i\<close>
+      and \<open>(\<forall>x y. x\<in>Ua i \<longrightarrow> y\<in>Ub i \<longrightarrow> fst (x, y) + snd (x, y) \<in> U i)\<close> for i
+      unfolding eventually_prod_filter
+      apply atomize_elim
+      apply (simp flip: all_conj_distrib add: choice_iff)
+      apply (subst choice_iff[symmetric])
+      apply (subst choice_iff[symmetric])
+      apply auto
+      by metis *)
+
+    then obtain Pa Pb where \<open>eventually (Pa i) (nhds (a *\<^sub>V i))\<close> and \<open>eventually (Pb i) (nhds (b *\<^sub>V i))\<close>
+      and PaPb_plus: \<open>(\<forall>x y. Pa i x \<longrightarrow> Pb i y \<longrightarrow> fst (x, y) + snd (x, y) \<in> U i)\<close> 
+    for i
+      unfolding eventually_prod_filter
+      by metis
+
+    from \<open>\<And>i. eventually (Pa i) (nhds (a *\<^sub>V i))\<close>
+    obtain Ua where \<open>open (Ua i)\<close> and a_Ua: \<open>a *\<^sub>V i \<in> Ua i\<close> and Ua_Pa: \<open>Ua i \<subseteq> Collect (Pa i)\<close> for i
+      unfolding eventually_nhds
+      apply atomize_elim
+      by (metis mem_Collect_eq subsetI)
+    from \<open>\<And>i. eventually (Pb i) (nhds (b *\<^sub>V i))\<close>
+    obtain Ub where \<open>open (Ub i)\<close> and b_Ub: \<open>b *\<^sub>V i \<in> Ub i\<close> and Ub_Pb: \<open>Ub i \<subseteq> Collect (Pb i)\<close> for i
+      unfolding eventually_nhds
+      apply atomize_elim
+      by (metis mem_Collect_eq subsetI)
+    have UaUb_plus: \<open>x \<in> Ua i \<Longrightarrow> y \<in> Ub i \<Longrightarrow> x + y \<in> U i\<close> for i x y
+      by (metis PaPb_plus Ua_Pa Ub_Pb fst_eqD mem_Collect_eq snd_conv subsetD)
+
+    define Ua' where \<open>Ua' i = (if i\<in>D then Ua i else UNIV)\<close> for i
+    define Ub' where \<open>Ub' i = (if i\<in>D then Ub i else UNIV)\<close> for i
+
+    have Ua'_UNIV: \<open>U i = UNIV \<Longrightarrow> Ua' i = UNIV\<close> for i
+      by (simp add: D_def Ua'_def)
+    have Ub'_UNIV: \<open>U i = UNIV \<Longrightarrow> Ub' i = UNIV\<close> for i
+      by (simp add: D_def Ub'_def)
+    have [simp]: \<open>open (Ua' i)\<close> for i
+      by (simp add: Ua'_def \<open>open (Ua _)\<close>)
+    have [simp]: \<open>open (Ub' i)\<close> for i
+      by (simp add: Ub'_def \<open>open (Ub _)\<close>)
+    have a_Ua': \<open>a *\<^sub>V i \<in> Ua' i\<close> for i
+      by (simp add: Ua'_def a_Ua)
+    have b_Ub': \<open>b *\<^sub>V i \<in> Ub' i\<close> for i
+      by (simp add: Ub'_def b_Ub)
+    have UaUb'_plus: \<open>a \<in> Ua' i \<Longrightarrow> b \<in> Ub' i \<Longrightarrow> a + b \<in> U i\<close> for i a b
+      apply (cases \<open>i \<in> D\<close>)
+      using UaUb_plus by (auto simp add: Ua'_def  Ub'_def D_def)
+
+    define Ua'' where \<open>Ua'' = Pi UNIV Ua'\<close>
+    define Ub'' where \<open>Ub'' = Pi UNIV Ub'\<close>
+
+    have \<open>open Ua''\<close>
+      using finiteD Ua'_UNIV
+      apply (auto simp add: openin_cstrong_operator_topology open_fun_def Ua''_def PiE_UNIV_domain
+          openin_product_topology_alt D_def intro!: exI[where x=\<open>Ua'\<close>])
+      by (meson Collect_mono rev_finite_subset)
+    have \<open>open Ub''\<close>
+      using finiteD Ub'_UNIV
+      apply (auto simp add: openin_cstrong_operator_topology open_fun_def Ub''_def PiE_UNIV_domain
+          openin_product_topology_alt D_def intro!: exI[where x=\<open>Ub'\<close>])
+      by (meson Collect_mono rev_finite_subset)
+    have a_Ua'': \<open>cblinfun_apply a \<in> Ua''\<close>
+      by (simp add: Ua''_def a_Ua')
+    have b_Ub'': \<open>cblinfun_apply b \<in> Ub''\<close>
+      by (simp add: Ub''_def b_Ub')
+    have UaUb''_plus: \<open>a \<in> Ua'' \<Longrightarrow> b \<in> Ub'' \<Longrightarrow> a i + b i \<in> U i\<close> for i a b
+      using UaUb'_plus apply (auto simp add: Ua''_def  Ub''_def)
+      by blast
+
+    define Ua''' where \<open>Ua''' = cblinfun_apply -` Ua''\<close>
+    define Ub''' where \<open>Ub''' = cblinfun_apply -` Ub''\<close>
+    have \<open>openin cstrong_operator_topology Ua'''\<close>
+      using \<open>open Ua''\<close> by (auto simp: openin_cstrong_operator_topology Ua'''_def)
+    have \<open>openin cstrong_operator_topology Ub'''\<close>
+      using \<open>open Ub''\<close> by (auto simp: openin_cstrong_operator_topology Ub'''_def)
+    have a_Ua'': \<open>a \<in> Ua'''\<close>
+      by (simp add: Ua'''_def a_Ua'')
+    have b_Ub'': \<open>b \<in> Ub'''\<close>
+      by (simp add: Ub'''_def b_Ub'')
+    have UaUb'''_plus: \<open>a \<in> Ua''' \<Longrightarrow> b \<in> Ub''' \<Longrightarrow> a *\<^sub>V i + b *\<^sub>V i \<in> U i\<close> for i a b
+      by (simp add: Ua'''_def UaUb''_plus Ub'''_def)
+
+    define Pa' where \<open>Pa' a \<longleftrightarrow> a \<in> Ua'''\<close> for a
+    define Pb' where \<open>Pb' b \<longleftrightarrow> b \<in> Ub'''\<close> for b
+
+    have Pa'_nhd: \<open>eventually Pa' (nhdsin cstrong_operator_topology a)\<close>
+      using \<open>openin cstrong_operator_topology Ua'''\<close>
+      by (auto simp add: Pa'_def eventually_nhdsin intro!: exI[of _ \<open>Ua'''\<close>] a_Ua'')
+    have Pb'_nhd: \<open>eventually Pb' (nhdsin cstrong_operator_topology b)\<close>
+      using \<open>openin cstrong_operator_topology Ub'''\<close>
+      by (auto simp add: Pb'_def eventually_nhdsin intro!: exI[of _ \<open>Ub'''\<close>] b_Ub'')
+    have Pa'Pb'_plus: \<open>((*\<^sub>V) \<circ> (\<lambda>x. fst x + snd x)) (a, b) \<in> S\<close> if \<open>Pa' a\<close> \<open>Pb' b\<close> for a b
+      using that UaUb'''_plus US
+      by (auto simp add: Pa'_def Pb'_def PiE_UNIV_domain Pi_iff cblinfun.add_left[THEN ext])
+
+    show \<open>\<forall>\<^sub>F x in nhdsin cstrong_operator_topology a \<times>\<^sub>F nhdsin cstrong_operator_topology b.
+            ((*\<^sub>V) \<circ> (\<lambda>x. fst x + snd x)) x \<in> S\<close>
+      using Pa'_nhd Pb'_nhd Pa'Pb'_plus
+      unfolding eventually_prod_filter
+      apply (rule_tac exI[of _ Pa'])
+      apply (rule_tac exI[of _ Pb'])
+      by simp
+  qed
+  then show ?thesis
+    unfolding 1 filterlim_filtercomap_iff by -
+qed
+
+instance cblinfun_sot :: (complex_normed_vector, complex_normed_vector) topological_group_add
+proof intro_classes
+  show \<open>((\<lambda>x. fst x + snd x) \<longlongrightarrow> a + b) (nhds a \<times>\<^sub>F nhds b)\<close> for a b :: \<open>('a,'b) cblinfun_sot\<close>
+    apply transfer
+    by (rule cstrong_operator_topology_plus_cont)
+
+  have *: \<open>continuous_map cstrong_operator_topology cstrong_operator_topology uminus\<close>
+    apply (subst continuous_on_cstrong_operator_topo_iff_coordinatewise)
+    apply (rewrite at \<open>(\<lambda>y. - y *\<^sub>V x)\<close> in \<open>\<forall>x. \<hole>\<close> to \<open>(\<lambda>y. y *\<^sub>V - x)\<close> DEADID.rel_mono_strong)
+    by (auto simp: cstrong_operator_topology_continuous_evaluation cblinfun.minus_left cblinfun.minus_right)
+  show \<open>(uminus \<longlongrightarrow> - a) (nhds a)\<close> for a :: \<open>('a,'b) cblinfun_sot\<close>
+    apply (subst tendsto_at_iff_tendsto_nhds[symmetric])
+    apply (subst isCont_def[symmetric])
+    apply (rule continuous_on_interior[where s=UNIV])
+     apply (subst continuous_map_iff_continuous2[symmetric])
+     apply transfer
+    using * by auto
+qed
+
+lemma limitin_closure_of:
+  assumes \<open>limitin T f c F\<close>
+  assumes \<open>range f \<subseteq> S\<close>
+  assumes \<open>\<not> trivial_limit F\<close>
+  shows \<open>c \<in> T closure_of S\<close>
+  by (smt (verit, ccfv_SIG) assms(1) assms(2) assms(3) eventually_happens' in_closure_of limitin_def rangeI subsetD)
+
+lemma limitin_closedin:
+  assumes \<open>limitin T f c F\<close>
+  assumes \<open>range f \<subseteq> S\<close>
+  assumes \<open>closedin T S\<close>
+  assumes \<open>\<not> trivial_limit F\<close>
+  shows \<open>c \<in> S\<close>
+  by (metis assms(1) assms(2) assms(3) assms(4) closure_of_eq limitin_closure_of)
+
+
+lemma infsum_bounded_clinear:
+  assumes \<open>bounded_clinear f\<close>
+  assumes \<open>g summable_on S\<close>
+  shows \<open>infsum (f \<circ> g) S = f (infsum g S)\<close>
+  apply (rule infsum_comm_additive)
+  using assms cblinfun_apply_induct cblinfun.additive_right
+  by (auto simp: clinear_continuous_within)
+
+lemma has_sum_bounded_clinear: 
+  assumes \<open>bounded_clinear f\<close>
+  assumes \<open>has_sum g S x\<close>
+  shows \<open>has_sum (f o g) S (f x)\<close>
+  apply (rule has_sum_comm_additive)
+  using assms cblinfun_apply_induct cblinfun.additive_right apply auto
+  using clinear_continuous_within isCont_def by fastforce
+
+lemma abs_summable_on_bounded_clinear: 
+  assumes \<open>bounded_clinear f\<close>
+  assumes \<open>g abs_summable_on S\<close>
+  shows \<open>(f o g) abs_summable_on S\<close>
+  sorry
+
+lemma infsum_cblinfun_apply:
+  assumes \<open>g summable_on S\<close>
+  shows \<open>infsum (\<lambda>x. A *\<^sub>V g x) S = A *\<^sub>V (infsum g S)\<close>
+  apply (rule infsum_bounded_clinear[unfolded o_def, of \<open>cblinfun_apply A\<close>])
+  using assms by (auto simp add: bounded_cbilinear.bounded_clinear_right bounded_cbilinear_cblinfun_apply)
+
+lemma has_sum_cblinfun_apply:
+  assumes \<open>has_sum g S x\<close>
+  shows \<open>has_sum (\<lambda>x. A *\<^sub>V g x) S (A *\<^sub>V x)\<close>
+  apply (rule has_sum_bounded_clinear[unfolded o_def, of \<open>cblinfun_apply A\<close>])
+  using assms by (auto simp add: bounded_cbilinear.bounded_clinear_right bounded_cbilinear_cblinfun_apply)
+
+lemma abs_summable_on_cblinfun_apply:
+  assumes \<open>g abs_summable_on S\<close>
+  shows \<open>(\<lambda>x. A *\<^sub>V g x) abs_summable_on S\<close>
+  sorry
+
+lemma has_sum_id_tensor_butterfly_ket: \<open>has_sum (\<lambda>i. (id_cblinfun \<otimes>\<^sub>o selfbutterket i) *\<^sub>V \<psi>) UNIV \<psi>\<close>
+  sorry
+
+(* TODO useful? TODO iff? *)
+lemma aux2: \<open>nhds a \<sqinter> principal A \<noteq> \<bottom>\<close> if \<open>a \<in> closure A\<close>
+  apply (cases \<open>a \<in> A\<close>)
+   apply (auto simp:  filter_eq_iff eventually_inf eventually_principal eventually_nhds) apply blast
+  apply (subgoal_tac \<open>a islimpt A\<close>)
+   apply ( simp add:  filter_eq_iff eventually_inf eventually_principal eventually_nhds islimpt_def)
+   apply meson
+  by (simp add: islimpt_in_closure that)
+
+lemma limit_in_closure:
+  assumes lim: \<open>(f \<longlongrightarrow> x) F\<close>
+  assumes nt: \<open>F \<noteq> \<bottom>\<close>
+  assumes inA: \<open>\<forall>\<^sub>F x in F. f x \<in> A\<close>
+  shows \<open>x \<in> closure A\<close>
+  apply (cases \<open>x \<in> A\<close>)
+   apply (meson closure_subset in_mono)
+  apply (auto simp: closure_def filterlim_def islimpt_def le_filter_def eventually_filtermap
+      eventually_nhds image_def)
+  by (smt (verit, ccfv_threshold) assms(1) assms(3) eventually_elim2 nt tendsto_def trivial_limit_eq)
+
+lemma sot_closure_is_csubspace[simp]:
+  fixes A::"('a::complex_normed_vector, 'b::complex_normed_vector) cblinfun_sot set"
+  assumes \<open>csubspace A\<close>
+  shows \<open>csubspace (closure A)\<close>
+proof (rule complex_vector.subspaceI)
+  show \<open>0 \<in> closure A\<close>
+    by (simp add: assms closure_def complex_vector.subspace_0)
+  show \<open>x + y \<in> closure A\<close> if \<open>x \<in> closure A\<close> \<open>y \<in> closure A\<close> for x y
+  proof -
+    define FF where \<open>FF = ((nhds x \<sqinter> principal A) \<times>\<^sub>F (nhds y \<sqinter> principal A))\<close>
+    have nt: \<open>FF \<noteq> bot\<close>
+      by (simp add: aux2 prod_filter_eq_bot that(1) that(2) FF_def)
+    have \<open>\<forall>\<^sub>F x in FF. fst x \<in> A\<close>
+      unfolding FF_def
+      by (smt (verit, ccfv_SIG) eventually_prod_filter fst_conv inf_sup_ord(2) le_principal)
+    moreover have \<open>\<forall>\<^sub>F x in FF. snd x \<in> A\<close>
+      unfolding FF_def
+      by (smt (verit, ccfv_SIG) eventually_prod_filter snd_conv inf_sup_ord(2) le_principal)
+    ultimately have FF_plus: \<open>\<forall>\<^sub>F x in FF. fst x + snd x \<in> A\<close>
+      by (smt (verit, best) assms complex_vector.subspace_add eventually_elim2)
+
+    have \<open>(fst \<longlongrightarrow> x) ((nhds x \<sqinter> principal A) \<times>\<^sub>F (nhds y \<sqinter> principal A))\<close>
+      apply (simp add: filterlim_def)
+      using filtermap_fst_prod_filter
+      using le_inf_iff by blast
+    moreover have \<open>(snd \<longlongrightarrow> y) ((nhds x \<sqinter> principal A) \<times>\<^sub>F (nhds y \<sqinter> principal A))\<close>
+      apply (simp add: filterlim_def)
+      using filtermap_snd_prod_filter
+      using le_inf_iff by blast
+    ultimately have \<open>(id \<longlongrightarrow> (x,y)) FF\<close>
+      by (simp add: filterlim_def nhds_prod prod_filter_mono FF_def)
+
+    moreover note tendsto_add_Pair[of x y]
+    ultimately have \<open>(((\<lambda>x. fst x + snd x) o id) \<longlongrightarrow> (\<lambda>x. fst x + snd x) (x,y)) FF\<close>
+      unfolding filterlim_def nhds_prod
+      by (smt (verit, best) filterlim_compose filterlim_def filterlim_filtermap fst_conv snd_conv tendsto_compose_filtermap)
+
+    then have \<open>((\<lambda>x. fst x + snd x) \<longlongrightarrow> (x+y)) FF\<close>
+      by simp
+    then show \<open>x + y \<in> closure A\<close>
+      using nt FF_plus by (rule limit_in_closure)
+  qed
+  show \<open>c *\<^sub>C x \<in> closure A\<close> if \<open>x \<in> closure A\<close> for x c
+    by -
+qed
+
+lemma [transfer_rule]:
+  includes lifting_syntax
+  shows \<open>(rel_set cr_cblinfun_sot ===> (=)) csubspace csubspace\<close>
+  unfolding complex_vector.subspace_def
+  by transfer_prover
+
+lemma [transfer_rule]:
+  includes lifting_syntax
+  shows \<open>(rel_set cr_cblinfun_sot ===> (=)) (closedin cstrong_operator_topology) closed\<close>
+  apply (simp add: closed_def[abs_def] closedin_def[abs_def] cstrong_operator_topology_topspace Compl_eq_Diff_UNIV)
+  by transfer_prover
+
+lemma [transfer_rule]:
+  includes lifting_syntax
+  shows \<open>(rel_set cr_cblinfun_sot ===> rel_set cr_cblinfun_sot) (Abstract_Topology.closure_of cstrong_operator_topology) closure\<close>
+  apply (subst closure_of_hull[where X=cstrong_operator_topology, unfolded cstrong_operator_topology_topspace, simplified, abs_def])
+  apply (subst closure_hull[abs_def])
+  unfolding hull_def
+  by transfer_prover
+
+lemma sot_closure_is_csubspace'[simp]:
+  fixes A::"('a::complex_normed_vector \<Rightarrow>\<^sub>C\<^sub>L 'b::complex_normed_vector) set"
+  assumes \<open>csubspace A\<close>
+  shows \<open>csubspace (cstrong_operator_topology closure_of A)\<close>
+  using sot_closure_is_csubspace[of \<open>Abs_cblinfun_sot ` A\<close>] assms
+  apply (transfer fixing: A)
+  by simp
+
+lemma has_sum_closed_cstrong_operator_topology:
+  assumes aA: \<open>\<And>i. a i \<in> A\<close>
+  assumes closed: \<open>closedin cstrong_operator_topology A\<close>
+  assumes subspace: \<open>csubspace A\<close>
+  assumes has_sum: \<open>\<And>\<psi>. has_sum (\<lambda>i. a i *\<^sub>V \<psi>) I (b *\<^sub>V \<psi>)\<close>
+  shows \<open>b \<in> A\<close>
+proof -
+  have 1: \<open>range (sum a) \<subseteq> A\<close>
+  proof -
+    have \<open>sum a X \<in> A\<close> for X
+      apply (induction X rule:infinite_finite_induct)
+      by (auto simp add: subspace complex_vector.subspace_0 aA complex_vector.subspace_add)
+    then show ?thesis
+      by auto
+  qed
+
+  from has_sum
+  have \<open>((\<lambda>F. \<Sum>i\<in>F. a i *\<^sub>V \<psi>) \<longlongrightarrow> b *\<^sub>V \<psi>) (finite_subsets_at_top I)\<close> for \<psi>
+    using has_sum_def by blast
+  then have \<open>limitin cstrong_operator_topology (\<lambda>F. \<Sum>i\<in>F. a i) b (finite_subsets_at_top I)\<close>
+    by (auto simp add: limitin_cstrong_operator_topology tendsto_coordinatewise cblinfun.sum_left)
+  then show \<open>b \<in> A\<close>
+    using 1 closed apply (rule limitin_closedin)
+    by simp
+qed
+
+(* TODO infinite version. Needs different proof because the butterflies only span the compact operators (I think). 
+  Takesaki, p.185, (10) basically is this, I think.
+*)
+lemma tensor_op_dense: \<open>cstrong_operator_topology closure_of (cspan {a \<otimes>\<^sub>o b | a b. True}) = UNIV\<close>
+proof (intro order.antisym subset_UNIV subsetI)
+  fix c :: \<open>('a \<times> 'b) ell2 \<Rightarrow>\<^sub>C\<^sub>L ('c \<times> 'd) ell2\<close>
+  define c' where \<open>c' i j = (tensor_ell2_right (ket i))* o\<^sub>C\<^sub>L c o\<^sub>C\<^sub>L tensor_ell2_right (ket j)\<close> for i j
+  define AB :: \<open>(('a \<times> 'b) ell2 \<Rightarrow>\<^sub>C\<^sub>L ('c \<times> 'd) ell2) set\<close> where
+    \<open>AB = cstrong_operator_topology closure_of (cspan {a \<otimes>\<^sub>o b | a b. True})\<close>
+
+  have [simp]: \<open>closedin cstrong_operator_topology AB\<close>
+    by (simp add: AB_def)
+  have [simp]: \<open>csubspace AB\<close>
+    using AB_def sot_closure_is_csubspace' by blast
+
+  have *: \<open>c' i j \<otimes>\<^sub>o butterket i j = (id_cblinfun \<otimes>\<^sub>o selfbutterket i) o\<^sub>C\<^sub>L c o\<^sub>C\<^sub>L (id_cblinfun \<otimes>\<^sub>o selfbutterket j)\<close> for i j
+    by -
+
+  have \<open>c' i j \<otimes>\<^sub>o butterket i j \<in> AB\<close> for i j
+  proof -
+    have \<open>c' i j \<otimes>\<^sub>o butterket i j \<in> {a \<otimes>\<^sub>o b | a b. True}\<close>
+      by auto
+    also have \<open>\<dots> \<subseteq> cspan \<dots>\<close>
+      by (simp add: complex_vector.span_superset)
+    also have \<open>\<dots> \<subseteq> cstrong_operator_topology closure_of \<dots>\<close>
+      apply (rule closure_of_subset)
+      by (simp add: cstrong_operator_topology_topspace)
+    also have \<open>\<dots> = AB\<close>
+      by (simp add: AB_def)
+    finally show ?thesis
+      by simp
+  qed
+  with * have AB1: \<open>(id_cblinfun \<otimes>\<^sub>o selfbutterket i) o\<^sub>C\<^sub>L c o\<^sub>C\<^sub>L (id_cblinfun \<otimes>\<^sub>o selfbutterket j) \<in> AB\<close> for i j
+    by simp
+  have \<open>has_sum (\<lambda>i. ((id_cblinfun \<otimes>\<^sub>o selfbutterket i) o\<^sub>C\<^sub>L c o\<^sub>C\<^sub>L (id_cblinfun \<otimes>\<^sub>o selfbutterket j)) *\<^sub>V \<psi>)
+            UNIV ((c o\<^sub>C\<^sub>L (id_cblinfun \<otimes>\<^sub>o selfbutterket j)) *\<^sub>V \<psi>)\<close> for j \<psi>
+    apply simp by (rule has_sum_id_tensor_butterfly_ket)
+  then have AB2: \<open>(c o\<^sub>C\<^sub>L (id_cblinfun \<otimes>\<^sub>o selfbutterket j)) \<in> AB\<close> for j
+    apply (rule has_sum_closed_cstrong_operator_topology[rotated -1])
+    using AB1 by auto
+
+  have \<open>has_sum (\<lambda>j. (c o\<^sub>C\<^sub>L (id_cblinfun \<otimes>\<^sub>o selfbutterket j)) *\<^sub>V \<psi>) UNIV (c *\<^sub>V \<psi>)\<close> for \<psi>
+    apply simp
+    apply (rule has_sum_cblinfun_apply)
+    by (rule has_sum_id_tensor_butterfly_ket)
+  then show AB3: \<open>c \<in> AB\<close>
+    apply (rule has_sum_closed_cstrong_operator_topology[rotated -1])
+    using AB2 by auto
+qed
+
+(* TODO this one, too? *)
+(* lemma tensor_op_dense:
+  fixes S :: \<open>('a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'c ell2) set\<close> and T :: \<open>('b ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2) set\<close>
+  assumes \<open>cstrong_operator_topology closure_of (cspan S) = UNIV\<close> and \<open>cstrong_operator_topology closure_of (cspan T) = UNIV\<close>
+  shows \<open>cstrong_operator_topology closure_of (cspan {a \<otimes>\<^sub>o b | a b. a\<in>S \<and> b\<in>T}) = UNIV\<close> *)
+
+
+
+
+lemma tensor_extensionality_finite:
+  fixes F G :: \<open>((('a::finite \<times> 'b::finite) ell2) \<Rightarrow>\<^sub>C\<^sub>L (('c::finite \<times> 'd::finite) ell2)) \<Rightarrow> 'e::complex_vector\<close>
   assumes [simp]: "clinear F" "clinear G"
   assumes tensor_eq: "(\<And>a b. F (tensor_op a b) = G (tensor_op a b))"
   shows "F = G"
@@ -561,7 +1212,7 @@ proof (rule ext, rule complex_vector.linear_eq_on_span[where f=F and g=G])
     using assms by (simp_all add: cbilinear_def)
   show \<open>x \<in> cspan  {tensor_op (butterket i j) (butterket k l)| i j k l. True}\<close> 
     for x :: \<open>('a \<times> 'b) ell2 \<Rightarrow>\<^sub>C\<^sub>L ('c \<times> 'd) ell2\<close>
-    using cspan_tensor_op by auto
+    using cspan_tensor_op_butter by auto
   show \<open>F x = G x\<close> if \<open>x \<in> {tensor_op (butterket i j) (butterket k l) |i j k l. True}\<close> for x
     using that by (auto simp: tensor_eq)
 qed
@@ -580,20 +1231,20 @@ lemma tensor_butterfly[simp]: "tensor_op (butterfly \<psi> \<psi>') (butterfly \
   by (simp flip: tensor_ell2_ket add: tensor_op_ell2 butterfly_def
       cblinfun_apply_cblinfun_compose tensor_ell2_scaleC1 tensor_ell2_scaleC2)
 
-definition tensor_lift :: \<open>(('a1 ell2 \<Rightarrow>\<^sub>C\<^sub>L 'a2 ell2) \<Rightarrow> ('b1 ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b2 ell2) \<Rightarrow> 'c)
-                        \<Rightarrow> ((('a1\<times>'b1) ell2 \<Rightarrow>\<^sub>C\<^sub>L ('a2\<times>'b2) ell2) \<Rightarrow> 'c::complex_vector)\<close> where
+definition tensor_lift :: \<open>(('a1::finite ell2 \<Rightarrow>\<^sub>C\<^sub>L 'a2::finite ell2) \<Rightarrow> ('b1::finite ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b2::finite ell2) \<Rightarrow> 'c)
+                        \<Rightarrow> ((('a1\<times>'b1) ell2 \<Rightarrow>\<^sub>C\<^sub>L ('a2\<times>'b2) ell2) \<Rightarrow> 'c::complex_normed_vector)\<close> where
   "tensor_lift F2 = (SOME G. clinear G \<and> (\<forall>a b. G (tensor_op a b) = F2 a b))"
+(* TODO use cblinfun_extension? *)
 (* TODO the same for tensor_ell2 *)
 
-(* TODO needs some sort constraints *)
 lemma 
-  fixes F2 :: "'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b ell2
-            \<Rightarrow> 'c ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2
+  fixes F2 :: "'a::finite ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b::finite ell2
+            \<Rightarrow> 'c::finite ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd::finite ell2
             \<Rightarrow> 'e::complex_normed_vector"
   assumes "cbilinear F2"
   shows tensor_lift_clinear: "clinear (tensor_lift F2)"
-    and tensor_lift_correct:  \<open>(\<lambda>a b. tensor_lift F2 (tensor_op a b)) = F2\<close>
-(* proof -
+    and tensor_lift_correct:  \<open>(\<lambda>a b. tensor_lift F2 (a \<otimes>\<^sub>o b)) = F2\<close>
+proof -
   define F2' t4 \<phi> where
     \<open>F2' = tensor_lift F2\<close> and
     \<open>t4 = (\<lambda>(i,j,k,l). tensor_op (butterket i j) (butterket k l))\<close> and
@@ -625,9 +1276,7 @@ lemma
     thm cblinfun_extension_exists_finite_dim[where \<phi>=\<phi>]
     apply (rule cblinfun_extension_exists_finite_dim)
      apply auto unfolding * 
-    using cindependent_tensor_op
-    using cspan_tensor_op
-    by auto
+    using cindependent_tensor_op_butter cspan_tensor_op_butter by auto
 
   then obtain G where G: \<open>G *\<^sub>V (t4 (i,j,k,l)) = F2 (butterket i j) (butterket k l)\<close> for i j k l
     apply atomize_elim
@@ -640,26 +1289,25 @@ lemma
   have *: \<open>G *\<^sub>V tensor_op a (butterket k l) = F2 a (butterket k l)\<close> for a k l
     apply (rule complex_vector.linear_eq_on_span[where g=\<open>\<lambda>a. F2 a _\<close> and B=\<open>{butterket k l|k l. True}\<close>])
     unfolding cspan_butterfly_ket
-    using * apply (auto intro!: clinear_compose[unfolded o_def, where f=\<open>\<lambda>a. tensor_op a _\<close> and g=\<open>( *\<^sub>V) G\<close>])
+    using * apply (auto intro!: clinear_compose[unfolded o_def, where f=\<open>\<lambda>a. tensor_op a _\<close> and g=\<open>(*\<^sub>V) G\<close>])
      apply (metis cbilinear_def tensor_op_cbilinear)
     using assms unfolding cbilinear_def by blast
   have G_F2: \<open>G *\<^sub>V tensor_op a b = F2 a b\<close> for a b
     apply (rule complex_vector.linear_eq_on_span[where g=\<open>F2 a\<close> and B=\<open>{butterket k l|k l. True}\<close>])
     unfolding cspan_butterfly_ket
     using * apply (auto simp: cblinfun.add_right clinearI
-                        intro!: clinear_compose[unfolded o_def, where f=\<open>tensor_op a\<close> and g=\<open>( *\<^sub>V) G\<close>])
+                        intro!: clinear_compose[unfolded o_def, where f=\<open>tensor_op a\<close> and g=\<open>(*\<^sub>V) G\<close>])
     apply (meson cbilinear_def tensor_op_cbilinear)
     using assms unfolding cbilinear_def by blast
 
   have \<open>clinear F2' \<and> (\<forall>a b. F2' (tensor_op a b) = F2 a b)\<close>
     unfolding F2'_def tensor_lift_def 
-    apply (rule someI[where x=\<open>( *\<^sub>V) G\<close> and P=\<open>\<lambda>G. clinear G \<and> (\<forall>a b. G (tensor_op a b) = F2 a b)\<close>])
+    apply (rule someI[where x=\<open>(*\<^sub>V) G\<close> and P=\<open>\<lambda>G. clinear G \<and> (\<forall>a b. G (tensor_op a b) = F2 a b)\<close>])
     using G_F2 by (simp add: cblinfun.add_right clinearI)
 
   then show \<open>clinear F2'\<close> and \<open>(\<lambda>a b. tensor_lift F2 (tensor_op a b)) = F2\<close>
     unfolding F2'_def by auto
-qed *)
-  sorry
+qed
 
 
 lemma tensor_op_nonzero:
@@ -852,42 +1500,89 @@ proof (rule bijI)
       apply (auto intro!: ext simp: x_def \<open>\<psi> _ = c\<close> \<open>c \<noteq> 0\<close>)
       apply (subst (2) everything_the_same[of _ undefined])
       by simp
-    then show \<open>\<exists>x\<in>Collect has_ell2_norm. (\<lambda>(i, j). \<psi> i * x j) = \<phi>\<close>
-      apply (rule bexI[where x=x])
-      (* by simp *)
-      sorry
+    moreover have \<open>has_ell2_norm x\<close>
+    proof -
+      have \<open>(\<lambda>(i,j). (\<phi> (i,j))\<^sup>2) abs_summable_on UNIV\<close>
+        using \<open>has_ell2_norm \<phi>\<close> has_ell2_norm_def by auto
+      then have \<open>(\<lambda>(i,j). (\<phi> (i,j))\<^sup>2) abs_summable_on Pair undefined ` UNIV\<close>
+        using summable_on_subset_banach by blast
+      then have \<open>(\<lambda>j. (\<phi> (undefined,j))\<^sup>2) abs_summable_on UNIV\<close>
+        apply (subst (asm) summable_on_reindex)
+        by (auto simp: o_def inj_def)
+      then have \<open>(\<lambda>j. (\<phi> (undefined,j) / c)\<^sup>2) abs_summable_on UNIV\<close>
+        by (simp add: divide_inverse power_mult_distrib norm_mult summable_on_cmult_left)
+      then have \<open>(\<lambda>j. (x j)\<^sup>2) abs_summable_on UNIV\<close>
+        by (simp add: x_def)
+      then show ?thesis
+        using has_ell2_norm_def by blast
+    qed
+    ultimately show \<open>\<exists>x\<in>Collect has_ell2_norm. (\<lambda>(i, j). \<psi> i * x j) = \<phi>\<close>
+      apply (rule_tac bexI[where x=x])
+      by auto
   qed
 
   then show \<open>surj (\<lambda>x::'b ell2. (\<psi> :: 'a::CARD_1 ell2) \<otimes>\<^sub>s x)\<close>
     by (metis surj_def)
 qed
 
+lemma ket_CARD_1_is_1: \<open>ket x = 1\<close> for x :: \<open>'a::CARD_1\<close>
+  apply transfer by simp
+
 lemma bij_tensor_op_one_dim_left:
+  fixes a :: \<open>'a::{CARD_1,enum} ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b::{CARD_1,enum} ell2\<close>
   assumes \<open>a \<noteq> 0\<close>
-  shows \<open>bij (\<lambda>x::'c ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2. (a :: 'a::{CARD_1,enum} ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b::{CARD_1,enum} ell2) \<otimes>\<^sub>o x)\<close>
-proof (rule bijI)
-  define t where \<open>t = (\<lambda>x::'c ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2. (a :: 'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b ell2) \<otimes>\<^sub>o x)\<close>
-  define i where
-    \<open>i = tensor_lift (\<lambda>(x::'a ell2 \<Rightarrow>\<^sub>C\<^sub>L 'b ell2) (y::'c ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2). (one_dim_iso x / one_dim_iso a) *\<^sub>C y)\<close>
-
-  have [simp]: \<open>clinear i\<close>
-    by (auto intro!: tensor_lift_clinear simp: i_def cbilinear_def clinearI scaleC_add_left add_divide_distrib)
-  have [simp]: \<open>clinear t\<close>
-    by (simp add: t_def)
-  have \<open>i (x \<otimes>\<^sub>o y) = (one_dim_iso x / one_dim_iso a) *\<^sub>C y\<close> for x y
-    by (auto intro!: clinearI tensor_lift_correct[THEN fun_cong, THEN fun_cong] simp: t_def i_def cbilinear_def  scaleC_add_left add_divide_distrib)
-  then have \<open>t (i (x \<otimes>\<^sub>o y)) = x \<otimes>\<^sub>o y\<close> for x y
-    apply (simp add: t_def)
-    by (smt (z3) assms complex_vector.scale_eq_0_iff nonzero_mult_div_cancel_right one_dim_scaleC_1 scaleC_scaleC tensor_op_scaleC_left tensor_op_scaleC_right times_divide_eq_left)
-  then have \<open>t (i x) = x\<close> for x
+  shows \<open>bij (\<lambda>x::'c ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2. a \<otimes>\<^sub>o x)\<close>
+proof -
+  have [simp]: \<open>bij (Pair (undefined::'a))\<close>
+    apply (rule o_bij[of snd]) by auto
+  have [simp]: \<open>bij (Pair (undefined::'b))\<close>
+    apply (rule o_bij[of snd]) by auto
+  define t where \<open>t x = a \<otimes>\<^sub>o x\<close> for x :: \<open>'c ell2 \<Rightarrow>\<^sub>C\<^sub>L 'd ell2\<close>
+  define u :: \<open>'c ell2 \<Rightarrow>\<^sub>C\<^sub>L ('a\<times>'c) ell2\<close> where \<open>u = classical_operator (Some o Pair undefined)\<close>
+  define v :: \<open>'d ell2 \<Rightarrow>\<^sub>C\<^sub>L ('b\<times>'d) ell2\<close> where \<open>v = classical_operator (Some o Pair undefined)\<close>
+  have [simp]: \<open>unitary u\<close> \<open>unitary v\<close>
+    by (simp_all add: u_def v_def)
+  have u_ket[simp]: \<open>u *\<^sub>V ket x = ket (undefined, x)\<close> for x
+    by (simp add: u_def classical_operator_ket classical_operator_exists_inj inj_def)
+  have uadj_ket[simp]: \<open>u* *\<^sub>V ket (z, x) = ket x\<close> for x z
+    apply (subst everything_the_same[of _ undefined])
+    by (metis (no_types, opaque_lifting) u_ket cinner_adj_right cinner_ket_eqI cinner_ket_same orthogonal_ket prod.inject)
+  have v_ket[simp]: \<open>v *\<^sub>V ket x = ket (undefined, x)\<close> for x
+    by (simp add: v_def classical_operator_ket classical_operator_exists_inj inj_def)
+  then have [simp]: \<open>v *\<^sub>V x = ket undefined \<otimes>\<^sub>s x\<close> for x
     apply (rule_tac fun_cong[where x=x])
-    apply (rule tensor_extensionality)
-    by (auto intro: clinear_compose complex_vector.module_hom_ident simp flip: o_def[of t i])
-  then show \<open>surj t\<close> 
-    by (rule surjI)
-
-  show \<open>inj t\<close>
-    unfolding t_def using assms by (rule inj_tensor_right)
+    apply (rule bounded_clinear_equal_ket)
+    by (auto simp add: bounded_clinear_tensor_ell21 cblinfun.bounded_clinear_right)
+  define a' :: complex where \<open>a' = one_dim_iso a\<close>
+  from assms have \<open>a' \<noteq> 0\<close>
+    using a'_def one_dim_iso_of_zero' by auto
+  have a_a': \<open>a = of_complex a'\<close>
+    by (simp add: a'_def) 
+  have \<open>t x *\<^sub>V ket (i,j) = (a' *\<^sub>C v o\<^sub>C\<^sub>L x o\<^sub>C\<^sub>L u*) *\<^sub>V ket (i,j)\<close> for x i j
+    apply (simp add: t_def)
+    apply (simp add: ket_CARD_1_is_1 tensor_op_ell2 flip: tensor_ell2_ket)
+    by (metis a'_def one_cblinfun_apply_one one_dim_scaleC_1 scaleC_cblinfun.rep_eq tensor_ell2_scaleC1) 
+  then have t: \<open>t x = (a' *\<^sub>C v o\<^sub>C\<^sub>L x o\<^sub>C\<^sub>L u*)\<close> for x
+    apply (rule_tac equal_ket)
+    by auto
+  define s where \<open>s y = (inverse a' *\<^sub>C (v)* o\<^sub>C\<^sub>L y o\<^sub>C\<^sub>L u)\<close> for y
+  have \<open>s (t x) = (a' * inverse a') *\<^sub>C (((v)* o\<^sub>C\<^sub>L v) o\<^sub>C\<^sub>L x o\<^sub>C\<^sub>L (u* o\<^sub>C\<^sub>L u))\<close> for x
+    apply (simp add: s_def t cblinfun_compose_assoc)
+    by (simp flip: cblinfun_compose_assoc)
+  also have \<open>\<dots> x = x\<close> for x
+    using \<open>a' \<noteq> 0\<close> by simp
+  finally have \<open>s o t = id\<close>
+    by auto
+  have \<open>t (s y) = (a' * inverse a') *\<^sub>C ((v o\<^sub>C\<^sub>L (v)*) o\<^sub>C\<^sub>L y o\<^sub>C\<^sub>L (u o\<^sub>C\<^sub>L u*))\<close> for y
+    apply (simp add: s_def t cblinfun_compose_assoc)
+    by (simp flip: cblinfun_compose_assoc)
+  also have \<open>\<dots> y = y\<close> for y
+    using \<open>a' \<noteq> 0\<close> by simp
+  finally have \<open>t o s = id\<close>
+    by auto
+  from \<open>s o t = id\<close> \<open>t o s = id\<close>
+  show \<open>bij t\<close>
+    using o_bij by blast
 qed
 
 lemma bij_tensor_op_one_dim_right:
