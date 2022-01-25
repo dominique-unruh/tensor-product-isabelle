@@ -238,6 +238,312 @@ lemma cspan_eqI:
     apply (rule complex_vector.span_minimal)
   using assms by auto
 
+lemma inv_prod_swap[simp]: \<open>inv prod.swap = prod.swap\<close>
+  by (simp add: inv_unique_comp)
+
+lemma limitin_pullback_topology: 
+  \<open>limitin (pullback_topology A g T) f l F \<longleftrightarrow> l\<in>A \<and> (\<forall>\<^sub>F x in F. f x \<in> A) \<and> limitin T (g o f) (g l) F\<close>
+  apply (simp add: topspace_pullback_topology limitin_def openin_pullback_topology imp_ex flip: ex_simps(1))
+  apply rule
+   apply simp
+   apply safe
+  using eventually_mono apply fastforce
+   apply (simp add: eventually_conj_iff)
+  by (simp add: eventually_conj_iff)
+
+lemma tendsto_coordinatewise: \<open>(f \<longlongrightarrow> l) F \<longleftrightarrow> (\<forall>x. ((\<lambda>i. f i x) \<longlongrightarrow> l x) F)\<close>
+proof (intro iffI allI)
+  assume asm: \<open>(f \<longlongrightarrow> l) F\<close>
+  then show \<open>((\<lambda>i. f i x) \<longlongrightarrow> l x) F\<close> for x
+    apply (rule continuous_on_tendsto_compose[where s=UNIV, rotated])
+    by auto
+next
+  assume asm: \<open>(\<forall>x. ((\<lambda>i. f i x) \<longlongrightarrow> l x) F)\<close>
+  show \<open>(f \<longlongrightarrow> l) F\<close>
+  proof (unfold tendsto_def, intro allI impI)
+    fix S assume \<open>open S\<close> and \<open>l \<in> S\<close>
+    from product_topology_open_contains_basis[OF \<open>open S\<close>[unfolded open_fun_def] \<open>l \<in> S\<close>]
+    obtain U where lU: \<open>l \<in> Pi UNIV U\<close> and openU: \<open>\<And>x. open (U x)\<close> and finiteD: \<open>finite {x. U x \<noteq> UNIV}\<close> and US: \<open>Pi UNIV U \<subseteq> S\<close>
+      by (auto simp add: PiE_UNIV_domain)
+
+    define D where \<open>D = {x. U x \<noteq> UNIV}\<close>
+    with finiteD have finiteD: \<open>finite D\<close>
+      by simp
+    have PiUNIV: \<open>t \<in> Pi UNIV U \<longleftrightarrow> (\<forall>x\<in>D. t x \<in> U x)\<close> for t
+      using D_def by blast
+
+    have f_Ui: \<open>\<forall>\<^sub>F i in F. f i x \<in> U x\<close> for x
+      using asm[rule_format, of x] openU[of x]
+      using lU topological_tendstoD by fastforce
+
+    have \<open>\<forall>\<^sub>F x in F. \<forall>i\<in>D. f x i \<in> U i\<close>
+      using finiteD
+    proof induction
+      case empty
+      then show ?case
+        by simp
+    next
+      case (insert x F)
+      with f_Ui show ?case
+        by (simp add: eventually_conj_iff)
+    qed
+
+    then show \<open>\<forall>\<^sub>F x in F. f x \<in> S\<close>
+      using US by (simp add: PiUNIV eventually_mono in_mono)
+  qed
+qed
+
+lemma filterlim_parametric[transfer_rule]: 
+  includes lifting_syntax
+  assumes [transfer_rule]: \<open>bi_unique S\<close>
+  shows \<open>((R ===> S) ===> rel_filter S ===> rel_filter R ===> (=)) filterlim filterlim\<close>
+  using filtermap_parametric[transfer_rule] le_filter_parametric[transfer_rule] apply fail?
+  unfolding filterlim_def
+  by transfer_prover
+
+
+definition rel_topology :: \<open>('a \<Rightarrow> 'b \<Rightarrow> bool) \<Rightarrow> ('a topology \<Rightarrow> 'b topology \<Rightarrow> bool)\<close> where
+  \<open>rel_topology R S T \<longleftrightarrow> (rel_fun (rel_set R) (=)) (openin S) (openin T)\<close>
+
+lemma [transfer_rule]:
+  includes lifting_syntax
+  shows \<open>(rel_topology R ===> rel_set R ===> (=)) openin openin\<close>
+  by (auto simp add: rel_fun_def rel_topology_def)
+
+lemma [transfer_rule]:
+  includes lifting_syntax
+  assumes [transfer_rule]: \<open>bi_total R\<close>
+  shows \<open>(rel_topology R ===> rel_set R) topspace topspace\<close>
+  unfolding topspace_def
+  by transfer_prover
+
+lemma [transfer_rule]:
+  includes lifting_syntax
+  assumes [transfer_rule]: \<open>bi_total S\<close>
+  assumes [transfer_rule]: \<open>bi_unique S\<close>
+  assumes [transfer_rule]: \<open>bi_total R\<close>
+  assumes [transfer_rule]: \<open>bi_unique R\<close>
+  shows \<open>(rel_topology R ===> rel_topology S ===> (R ===> S) ===> (=)) continuous_map continuous_map\<close>
+  unfolding continuous_map_def
+  by transfer_prover
+
+
+lemma limitin_closure_of:
+  assumes \<open>limitin T f c F\<close>
+  assumes \<open>range f \<subseteq> S\<close>
+  assumes \<open>\<not> trivial_limit F\<close>
+  shows \<open>c \<in> T closure_of S\<close>
+  by (smt (verit, ccfv_SIG) assms(1) assms(2) assms(3) eventually_happens' in_closure_of limitin_def rangeI subsetD)
+
+lemma limitin_closedin:
+  assumes \<open>limitin T f c F\<close>
+  assumes \<open>range f \<subseteq> S\<close>
+  assumes \<open>closedin T S\<close>
+  assumes \<open>\<not> trivial_limit F\<close>
+  shows \<open>c \<in> S\<close>
+  by (metis assms(1) assms(2) assms(3) assms(4) closure_of_eq limitin_closure_of)
+
+
+lemma infsum_bounded_clinear:
+  assumes \<open>bounded_clinear f\<close>
+  assumes \<open>g summable_on S\<close>
+  shows \<open>infsum (f \<circ> g) S = f (infsum g S)\<close>
+  apply (rule infsum_comm_additive)
+  using assms cblinfun_apply_induct cblinfun.additive_right
+  by (auto simp: clinear_continuous_within)
+
+lemma has_sum_bounded_clinear: 
+  assumes \<open>bounded_clinear f\<close>
+  assumes \<open>has_sum g S x\<close>
+  shows \<open>has_sum (f o g) S (f x)\<close>
+  apply (rule has_sum_comm_additive)
+  using assms cblinfun_apply_induct cblinfun.additive_right apply auto
+  using clinear_continuous_within isCont_def by fastforce
+
+lemma abs_summable_on_bounded_clinear: 
+  assumes \<open>bounded_clinear f\<close>
+  assumes \<open>g abs_summable_on S\<close>
+  shows \<open>(f o g) abs_summable_on S\<close>
+proof -
+  have bound: \<open>norm (f (g x)) \<le> onorm f * norm (g x)\<close> for x
+    apply (rule onorm)
+    by (simp add: bounded_clinear.bounded_linear assms(1))
+
+  from assms(2) have \<open>(\<lambda>x. onorm f *\<^sub>C g x) abs_summable_on S\<close>
+    by (auto simp: norm_scaleC intro!: summable_on_cmult_right)
+  then have \<open>(\<lambda>x. f (g x)) abs_summable_on S\<close>
+    apply (rule abs_summable_on_comparison_test)
+    using bound by (auto simp: bounded_clinear.bounded_linear assms(1) onorm_pos_le)
+  then show ?thesis
+    by auto
+qed
+
+lemma infsum_cblinfun_apply:
+  assumes \<open>g summable_on S\<close>
+  shows \<open>infsum (\<lambda>x. A *\<^sub>V g x) S = A *\<^sub>V (infsum g S)\<close>
+  apply (rule infsum_bounded_clinear[unfolded o_def, of \<open>cblinfun_apply A\<close>])
+  using assms by (auto simp add: bounded_cbilinear.bounded_clinear_right bounded_cbilinear_cblinfun_apply)
+
+lemma has_sum_cblinfun_apply:
+  assumes \<open>has_sum g S x\<close>
+  shows \<open>has_sum (\<lambda>x. A *\<^sub>V g x) S (A *\<^sub>V x)\<close>
+  apply (rule has_sum_bounded_clinear[unfolded o_def, of \<open>cblinfun_apply A\<close>])
+  using assms by (auto simp add: bounded_cbilinear.bounded_clinear_right bounded_cbilinear_cblinfun_apply)
+
+lemma abs_summable_on_cblinfun_apply:
+  assumes \<open>g abs_summable_on S\<close>
+  shows \<open>(\<lambda>x. A *\<^sub>V g x) abs_summable_on S\<close>
+  using cblinfun.bounded_clinear_right assms
+  by (rule abs_summable_on_bounded_clinear[unfolded o_def])
+
+lemma trunc_ell2_UNIV[simp]: \<open>trunc_ell2 UNIV \<psi> = \<psi>\<close>
+  apply transfer by simp
+
+lemma ell2_norm_square: \<open>(ell2_norm x)\<^sup>2 = (\<Sum>\<^sub>\<infinity>i. (cmod (x i))\<^sup>2)\<close>
+  unfolding ell2_norm_def
+  apply (subst real_sqrt_pow2)
+   apply (meson Extra_General.infsum_nonneg zero_le_power2)
+  by simp
+
+lemma trunc_ell2_norm_mono: \<open>M \<subseteq> N \<Longrightarrow> norm (trunc_ell2 M \<psi>) \<le> norm (trunc_ell2 N \<psi>)\<close>
+proof (rule power2_le_imp_le[rotated], force, transfer)
+  fix M N :: \<open>'a set\<close> and \<psi> :: \<open>'a \<Rightarrow> complex\<close>
+  assume \<open>M \<subseteq> N\<close> and \<open>has_ell2_norm \<psi>\<close>
+  have \<open>(ell2_norm (\<lambda>i. if i \<in> M then \<psi> i else 0))\<^sup>2 = (\<Sum>\<^sub>\<infinity>i\<in>M. (cmod (\<psi> i))\<^sup>2)\<close>
+    unfolding ell2_norm_square
+    apply (rule infsum_cong_neutral)
+    by auto
+  also have \<open>\<dots> \<le> (\<Sum>\<^sub>\<infinity>i\<in>N. (cmod (\<psi> i))\<^sup>2)\<close>
+    apply (rule infsum_mono2)
+    using \<open>has_ell2_norm \<psi>\<close> \<open>M \<subseteq> N\<close>
+    by (auto simp add: ell2_norm_square has_ell2_norm_def simp flip: norm_power intro: summable_on_subset_banach)
+  also have \<open>\<dots> = (ell2_norm (\<lambda>i. if i \<in> N then \<psi> i else 0))\<^sup>2\<close>
+    unfolding ell2_norm_square
+    apply (rule infsum_cong_neutral)
+    by auto
+  finally show \<open>(ell2_norm (\<lambda>i. if i \<in> M then \<psi> i else 0))\<^sup>2 \<le> (ell2_norm (\<lambda>i. if i \<in> N then \<psi> i else 0))\<^sup>2\<close>
+    by -
+qed
+
+lemma trunc_ell2_twice[simp]: \<open>trunc_ell2 M (trunc_ell2 N \<psi>) = trunc_ell2 (M\<inter>N) \<psi>\<close>
+  apply transfer by auto
+
+lemma trunc_ell2_union: \<open>trunc_ell2 (M \<union> N) \<psi> = trunc_ell2 M \<psi> + trunc_ell2 N \<psi> - trunc_ell2 (M\<inter>N) \<psi>\<close>
+  apply transfer by auto
+
+lemma trunc_ell2_union_disjoint: \<open>M\<inter>N = {} \<Longrightarrow> trunc_ell2 (M \<union> N) \<psi> = trunc_ell2 M \<psi> + trunc_ell2 N \<psi>\<close>
+  by (simp add: trunc_ell2_union)
+
+lemma trunc_ell2_union_Diff: \<open>M \<subseteq> N \<Longrightarrow> trunc_ell2 (N-M) \<psi> = trunc_ell2 N \<psi> - trunc_ell2 M \<psi>\<close>
+  using trunc_ell2_union_disjoint[where M=\<open>N-M\<close> and N=M and \<psi>=\<psi>]
+  by (simp add: Un_commute inf.commute le_iff_sup)
+
+
+(* TODO replace existing lemma (strengthening) *)
+thm finite_subsets_at_top_inter
+lemma finite_subsets_at_top_inter: 
+  assumes "A\<subseteq>B"
+  shows "filtermap (\<lambda>F. F \<inter> A) (finite_subsets_at_top B) = finite_subsets_at_top A"
+proof (subst filter_eq_iff, intro allI iffI)
+  fix P :: "'a set \<Rightarrow> bool"
+  assume "eventually P (finite_subsets_at_top A)"
+  then show "eventually P (filtermap (\<lambda>F. F \<inter> A) (finite_subsets_at_top B))"
+    unfolding eventually_filtermap
+    unfolding eventually_finite_subsets_at_top
+    by (metis Int_subset_iff assms finite_Int inf_le2 subset_trans)
+next
+  fix P :: "'a set \<Rightarrow> bool"
+  assume "eventually P (filtermap (\<lambda>F. F \<inter> A) (finite_subsets_at_top B))"
+  then obtain X where \<open>finite X\<close> \<open>X \<subseteq> B\<close> and P: \<open>finite Y \<Longrightarrow> X \<subseteq> Y \<Longrightarrow> Y \<subseteq> B \<Longrightarrow> P (Y \<inter> A)\<close> for Y
+    unfolding eventually_filtermap eventually_finite_subsets_at_top by metis
+  have *: \<open>finite Y \<Longrightarrow> X \<inter> A \<subseteq> Y \<Longrightarrow> Y \<subseteq> A \<Longrightarrow> P Y\<close> for Y
+    using P[where Y=\<open>Y \<union> (B-A)\<close>]
+    apply (subgoal_tac \<open>(Y \<union> (B - A)) \<inter> A = Y\<close>)
+    apply (smt (verit, best) Int_Un_distrib2 Int_Un_eq(4) P Un_subset_iff \<open>X \<subseteq> B\<close> \<open>finite X\<close> assms finite_UnI inf.orderE sup_ge2)
+    by auto
+  show "eventually P (finite_subsets_at_top A)"
+    unfolding eventually_finite_subsets_at_top
+    apply (rule exI[of _ \<open>X\<inter>A\<close>])
+    by (auto simp: \<open>finite X\<close> intro!: *)
+qed
+
+
+lemma trunc_ell2_lim: \<open>((\<lambda>S. trunc_ell2 S \<psi>) \<longlongrightarrow> trunc_ell2 M \<psi>) (finite_subsets_at_top M)\<close>
+proof -
+  have \<open>((\<lambda>S. trunc_ell2 S (trunc_ell2 M \<psi>)) \<longlongrightarrow> trunc_ell2 M \<psi>) (finite_subsets_at_top UNIV)\<close>
+    using trunc_ell2_lim_at_UNIV by blast
+  then have \<open>((\<lambda>S. trunc_ell2 (S\<inter>M) \<psi>) \<longlongrightarrow> trunc_ell2 M \<psi>) (finite_subsets_at_top UNIV)\<close>
+    by simp
+  then show \<open>((\<lambda>S. trunc_ell2 S \<psi>) \<longlongrightarrow> trunc_ell2 M \<psi>) (finite_subsets_at_top M)\<close>
+    unfolding filterlim_def
+    apply (subst (asm) filtermap_filtermap[where g=\<open>\<lambda>S. S\<inter>M\<close>, symmetric])
+    apply (subst (asm) finite_subsets_at_top_inter[where A=M and B=UNIV])
+    by auto
+qed
+
+lemma trunc_ell2_lim_general:
+  assumes big: \<open>\<And>G. finite G \<Longrightarrow> G \<subseteq> M \<Longrightarrow> (\<forall>\<^sub>F H in F. H \<supseteq> G)\<close>
+  assumes small: \<open>\<forall>\<^sub>F H in F. H \<subseteq> M\<close>
+  shows \<open>((\<lambda>S. trunc_ell2 S \<psi>) \<longlongrightarrow> trunc_ell2 M \<psi>) F\<close>
+proof (rule tendstoI)
+  fix e :: real assume \<open>e > 0\<close>
+  from trunc_ell2_lim[THEN tendsto_iff[THEN iffD1], rule_format, OF \<open>e > 0\<close>, where M=M and \<psi>=\<psi>]
+  obtain G where \<open>finite G\<close> and \<open>G \<subseteq> M\<close> and 
+    close: \<open>dist (trunc_ell2 G \<psi>) (trunc_ell2 M \<psi>) < e\<close>
+    apply atomize_elim
+    unfolding eventually_finite_subsets_at_top
+    by blast
+  from \<open>finite G\<close> \<open>G \<subseteq> M\<close> and big
+  have \<open>\<forall>\<^sub>F H in F. H \<supseteq> G\<close>
+    by -
+  with small have \<open>\<forall>\<^sub>F H in F. H \<subseteq> M \<and> H \<supseteq> G\<close>
+    by (simp add: eventually_conj_iff)
+  then show \<open>\<forall>\<^sub>F H in F. dist (trunc_ell2 H \<psi>) (trunc_ell2 M \<psi>) < e\<close>
+  proof (rule eventually_mono)
+    fix H assume GHM: \<open>H \<subseteq> M \<and> H \<supseteq> G\<close>
+    have \<open>dist (trunc_ell2 H \<psi>) (trunc_ell2 M \<psi>) = norm (trunc_ell2 (M-H) \<psi>)\<close>
+      by (simp add: GHM dist_ell2_def norm_minus_commute trunc_ell2_union_Diff)
+    also have \<open>\<dots> \<le> norm (trunc_ell2 (M-G) \<psi>)\<close>
+      by (simp add: Diff_mono GHM trunc_ell2_norm_mono)
+    also have \<open>\<dots>  = dist (trunc_ell2 G \<psi>) (trunc_ell2 M \<psi>)\<close>
+      by (simp add: \<open>G \<subseteq> M\<close> dist_ell2_def norm_minus_commute trunc_ell2_union_Diff)
+    also have \<open>\<dots> < e\<close>
+      using close by simp
+    finally show \<open>dist (trunc_ell2 H \<psi>) (trunc_ell2 M \<psi>) < e\<close>
+      by -
+  qed
+qed
+
+
+lemma closure_nhds_principal: \<open>a \<in> closure A \<longleftrightarrow> nhds a \<sqinter> principal A \<noteq> \<bottom>\<close>
+proof (rule iffI)
+  show \<open>nhds a \<sqinter> principal A \<noteq> \<bottom>\<close> if \<open>a \<in> closure A\<close>
+    apply (cases \<open>a \<in> A\<close>)
+     apply (auto simp: filter_eq_iff eventually_inf eventually_principal eventually_nhds) apply blast
+    apply (subgoal_tac \<open>a islimpt A\<close>)
+     apply ( simp add: filter_eq_iff eventually_inf eventually_principal eventually_nhds islimpt_def)
+     apply meson
+    by (simp add: islimpt_in_closure that)
+  show \<open>a \<in> closure A\<close> if \<open>nhds a \<sqinter> principal A \<noteq> \<bottom>\<close>
+    by (metis Diff_empty Diff_insert0 at_within_def closure_subset not_in_closure_trivial_limitI subsetD that)
+qed
+
+
+lemma limit_in_closure:
+  assumes lim: \<open>(f \<longlongrightarrow> x) F\<close>
+  assumes nt: \<open>F \<noteq> \<bottom>\<close>
+  assumes inA: \<open>\<forall>\<^sub>F x in F. f x \<in> A\<close>
+  shows \<open>x \<in> closure A\<close>
+  apply (cases \<open>x \<in> A\<close>)
+   apply (meson closure_subset in_mono)
+  apply (auto simp: closure_def filterlim_def islimpt_def le_filter_def eventually_filtermap
+      eventually_nhds image_def)
+  by (smt (verit, ccfv_threshold) assms(1) assms(3) eventually_elim2 nt tendsto_def trivial_limit_eq)
+
+lemma ket_CARD_1_is_1: \<open>ket x = 1\<close> for x :: \<open>'a::CARD_1\<close>
+  apply transfer by simp
+
+
 unbundle no_cblinfun_notation
 
 end
