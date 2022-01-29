@@ -6,31 +6,20 @@ unbundle cblinfun_notation
 
 
 definition some_chilbert_basis :: \<open>'a::chilbert_space set\<close> where
-  \<open>some_chilbert_basis = (SOME B::'a set. is_ortho_set B \<and> (\<forall>b\<in>B. norm b = 1) \<and> closure (cspan B) = UNIV)\<close>
+  \<open>some_chilbert_basis = (SOME B::'a set. is_onb B)\<close>
 
-lemma
-  defines \<open>basis == some_chilbert_basis :: 'a::chilbert_space set\<close>
-  shows is_ortho_set_some_chilbert_basis: \<open>is_ortho_set basis\<close>
-    and is_normal_some_chilbert_basis: \<open>\<And>x. x \<in> basis \<Longrightarrow> norm x = 1\<close>
-    and span_some_chilbert_basis[simp]: \<open>closure (cspan basis) = UNIV\<close>
-proof -
-  define P where \<open>P B \<longleftrightarrow> is_ortho_set B \<and> (\<forall>b\<in>B. norm b = 1) \<and> closure (cspan B) = UNIV\<close> for B :: \<open>'a set\<close>
-  with orthonormal_basis_exists[OF is_ortho_set_empty] have ex: \<open>\<exists>B. P B\<close>
-    by auto
-  have \<open>basis = (SOME B. P B)\<close>
-    using P_def basis_def some_chilbert_basis_def by auto
-  with ex have \<open>P basis\<close>
-    by (simp add: someI_ex)
-  then show \<open>is_ortho_set basis\<close>
-    using P_def by simp
-  show \<open>\<And>x. x \<in> basis \<Longrightarrow> norm x = 1\<close>
-    using P_def \<open>P basis\<close> by simp
-  show \<open>closure (cspan basis) = UNIV\<close>
-    using P_def \<open>P basis\<close> by simp
-qed
+lemma is_onb_some_chilbert_basis[simp]: \<open>is_onb (some_chilbert_basis :: 'a::chilbert_space set)\<close>
+  using orthonormal_basis_exists[OF is_ortho_set_empty]
+  by (auto simp add: some_chilbert_basis_def intro: someI2)
 
+lemma is_ortho_set_some_chilbert_basis[simp]: \<open>is_ortho_set some_chilbert_basis\<close>
+  using is_onb_def is_onb_some_chilbert_basis by blast
+lemma is_normal_some_chilbert_basis: \<open>\<And>x. x \<in> some_chilbert_basis \<Longrightarrow> norm x = 1\<close>
+  using is_onb_def is_onb_some_chilbert_basis by blast
 lemma ccspan_some_chilbert_basis[simp]: \<open>ccspan some_chilbert_basis = \<top>\<close>
-  apply transfer by (rule span_some_chilbert_basis)
+  using is_onb_def is_onb_some_chilbert_basis by blast
+lemma span_some_chilbert_basis[simp]: \<open>closure (cspan some_chilbert_basis) = UNIV\<close>
+  by (metis ccspan.rep_eq ccspan_some_chilbert_basis top_ccsubspace.rep_eq)
 
 lemma some_chilbert_basis_nonempty: \<open>(some_chilbert_basis :: 'a::{chilbert_space, not_singleton} set) \<noteq> {}\<close>
 proof (rule ccontr, simp)

@@ -192,10 +192,12 @@ next
     by (simp add: local.span_minimal subsetI)
 qed
 
+definition is_onb where \<open>is_onb E \<longleftrightarrow> is_ortho_set E \<and> (\<forall>b\<in>E. norm b = 1) \<and> ccspan E = \<top>\<close>
+
 lemma orthonormal_basis_exists: 
   fixes S :: \<open>'a::chilbert_space set\<close>
   assumes \<open>is_ortho_set S\<close> and \<open>\<And>x. x\<in>S \<Longrightarrow> norm x = 1\<close>
-  shows \<open>\<exists>B. B \<supseteq> S \<and> is_ortho_set B \<and> (\<forall>b\<in>B. norm b = 1) \<and> closure (cspan B) = UNIV\<close>
+  shows \<open>\<exists>B. B \<supseteq> S \<and> is_onb B\<close>
 proof -
   from \<open>is_ortho_set S\<close>
   obtain B where \<open>is_ortho_set B\<close> and \<open>B \<supseteq> S\<close> and \<open>closure (cspan B) = UNIV\<close>
@@ -205,7 +207,9 @@ proof -
     by (simp add: assms(2))
   then have \<open>B' \<supseteq> S\<close>
     using B'_def \<open>S \<subseteq> B\<close> by blast
-  moreover have \<open>closure (cspan B') = UNIV\<close>
+  moreover 
+  have \<open>ccspan B' = \<top>\<close>
+    apply (transfer fixing: B')
     apply (simp add: B'_def scaleR_scaleC)
     apply (subst complex_vector.span_image_scale)
     using \<open>is_ortho_set B\<close> \<open>closure (cspan B) = UNIV\<close> is_ortho_set_def by auto
@@ -216,7 +220,7 @@ proof -
     using \<open>is_ortho_set B\<close> apply (auto simp: B'_def is_ortho_set_def)
     by (metis field_class.field_inverse norm_eq_zero)
   ultimately show ?thesis
-    by auto
+    by (auto simp: is_onb_def)
 qed
 
 
@@ -542,7 +546,6 @@ lemma limit_in_closure:
 
 lemma ket_CARD_1_is_1: \<open>ket x = 1\<close> for x :: \<open>'a::CARD_1\<close>
   apply transfer by simp
-
 
 unbundle no_cblinfun_notation
 

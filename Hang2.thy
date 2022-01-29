@@ -45,22 +45,19 @@ lemma transfer_nhds_cstrong_operator_topology[transfer_rule]:
   by transfer_prover
 
 
-(* (* Unused *)
+lemma limitin_cstrong_operator_topology: 
+  \<open>limitin cstrong_operator_topology f l F \<longleftrightarrow> (((*\<^sub>V) \<circ> f) \<longlongrightarrow> (*\<^sub>V) l) F\<close>
+  by (simp add: cstrong_operator_topology_def limitin_pullback_topology)
+
+(* TODO move *)
 lemma limitin_product_topology:
-  shows \<open>limitin (product_topology T I) f l F \<longleftrightarrow> 
-    l \<in> extensional I \<and> (\<forall>\<^sub>F x in F. f x \<in> (\<Pi>\<^sub>E i\<in>I. topspace (T i))) \<and> (\<forall>i\<in>I. limitin (T i) (\<lambda>j. f j i) (l i) F)\<close>
+  \<open>limitin (product_topology T I) f l F \<longleftrightarrow> l \<in> extensional I \<and> (\<forall>i\<in>I. limitin (T i) (\<lambda>j. f j i) (l i) F)\<close>
 proof (intro iffI conjI ballI)
   assume asm: \<open>limitin (product_topology T I) f l F\<close>
   then have l_PiE: \<open>l \<in> (\<Pi>\<^sub>E i\<in>I. topspace (T i))\<close>
     by (metis PiE_iff limitin_topspace topspace_product_topology)
   then show \<open>l \<in> extensional I\<close>
     using PiE_iff by blast
-  from asm have *: \<open>openin (product_topology T I) U \<Longrightarrow> l \<in> U \<Longrightarrow> (\<forall>\<^sub>F x in F. f x \<in> U)\<close> for U
-     unfolding limitin_def by simp
-   show \<open>\<forall>\<^sub>F x in F. f x \<in> (\<Pi>\<^sub>E i\<in>I. topspace (T i))\<close>
-     apply (rule * )
-      apply (metis openin_topspace topspace_product_topology)
-     by (rule l_PiE)
 
   fix i assume \<open>i \<in> I\<close>
   from l_PiE have l_topspace: \<open>l i \<in> topspace (T i)\<close>
@@ -95,7 +92,7 @@ proof (intro iffI conjI ballI)
   show \<open>limitin (T i) (\<lambda>j. f j i) (l i) F\<close>
     using l_topspace eventually_U unfolding limitin_def by simp
 next
-  assume asm: \<open>l \<in> extensional I \<and> (\<forall>\<^sub>F x in F. f x \<in> (\<Pi>\<^sub>E i\<in>I. topspace (T i))) \<and> (\<forall>i\<in>I. limitin (T i) (\<lambda>j. f j i) (l i) F)\<close>
+  assume asm: \<open>l \<in> extensional I \<and> (\<forall>i\<in>I. limitin (T i) (\<lambda>j. f j i) (l i) F)\<close>
   then have limit: \<open>limitin (T i) (\<lambda>j. f j i) (l i) F\<close> if \<open>i\<in>I\<close> for i
     using that by simp
   have l_topspace: \<open>l \<in> topspace (product_topology T I)\<close>
@@ -105,38 +102,41 @@ next
   proof -
     from product_topology_open_contains_basis[OF that]
     obtain V where l_V: \<open>l \<in> Pi\<^sub>E I V\<close> and open_V: \<open>(\<forall>i. openin (T i) (V i))\<close>
-      and finite_I0: \<open>finite {i. V i \<noteq> topspace (T i)}\<close> and V_U: \<open>Pi\<^sub>E I V \<subseteq> U\<close>
+      and finite_I0: \<open>finite {i. V i \<noteq> topspace (T i)}\<close> and \<open>Pi\<^sub>E I V \<subseteq> U\<close>
       by auto
     define I0 where \<open>I0 = {i\<in>I. V i \<noteq> topspace (T i)}\<close>
     have \<open>\<forall>\<^sub>F x in F. f x i \<in> V i\<close> if \<open>i\<in>I\<close> for i
       using limit[OF that] that unfolding limitin_def
       by (meson PiE_E open_V l_V)
-    then have 1: \<open>\<forall>\<^sub>F x in F. \<forall>i\<in>I0. f x i \<in> V i\<close>
+    then have \<open>\<forall>\<^sub>F x in F. \<forall>i\<in>I0. f x i \<in> V i\<close>
       apply (subst eventually_ball_finite_distrib)
       by (simp_all add: I0_def finite_I0)
-    from asm have 2: \<open>\<forall>\<^sub>F x in F. f x \<in> (\<Pi>\<^sub>E i\<in>I. topspace (T i))\<close>
-      by simp
-    have 3: \<open>f x i \<in> V i\<close> if \<open>f x i \<in> topspace (T i)\<close> and \<open>i \<in> I-I0\<close> for i x
-      using that unfolding I0_def by blast
-    from 2 3 have \<open>\<forall>\<^sub>F x in F. \<forall>i\<in>I-I0. f x i \<in> V i\<close>
-      by (smt (verit) Diff_iff PiE_iff eventually_mono)
-    with 1 have \<open>\<forall>\<^sub>F x in F. \<forall>i\<in>I. f x i \<in> V i\<close>
-      by (smt (verit, best) DiffI eventually_elim2)
-    with 2 have \<open>\<forall>\<^sub>F x in F. (\<forall>i\<in>I. f x i \<in> V i) \<and> f x \<in> (\<Pi>\<^sub>E i\<in>I. topspace (T i))\<close>
-      using eventually_conj by blast
-    then show \<open>\<forall>\<^sub>F x in F. f x \<in> U\<close>
-      apply (rule eventually_mono)
-      using V_U unfolding PiE_def by blast
+    have \<open>\<forall>i\<in>I-I0. f x i \<in> V i\<close> for x
+      unfolding I0_def
+      apply auto
+      apply auto x
   qed
 
   show \<open>limitin (product_topology T I) f l F\<close>
     using l_topspace eventually_U unfolding limitin_def by simp
-qed *)
+qed
 
-lemma limitin_cstrong_operator_topology:
-  \<open>limitin cstrong_operator_topology f l F \<longleftrightarrow> (\<forall>i. ((\<lambda>j. f j *\<^sub>V i) \<longlongrightarrow> l *\<^sub>V i) F)\<close>
-  by (simp add: cstrong_operator_topology_def limitin_pullback_topology 
-      tendsto_coordinatewise)
+
+lemma limitin_cstrong_operator_topology_XXX: 
+  \<open>limitin cstrong_operator_topology f l F \<longleftrightarrow> xxx\<close>
+  apply (simp add: cstrong_operator_topology_def limitin_pullback_topology 
+flip: euclidean_product_topology)
+
+  apply simp
+
+
+lemma transfer_tendsto_cstrong_operator_topology[transfer_rule]: 
+  includes lifting_syntax
+  shows \<open>((R ===> cr_cblinfun_sot) ===> cr_cblinfun_sot ===> rel_filter R ===> (=)) (limitin cstrong_operator_topology) tendsto\<close>
+  apply transfer_prover_start
+    apply transfer_step
+   apply transfer_step
+  oops
 
 lemma filterlim_cstrong_operator_topology: \<open>filterlim f (nhdsin cstrong_operator_topology l) = limitin cstrong_operator_topology f l\<close>
   unfolding limitin_def filterlim_def eventually_filtermap le_filter_def eventually_nhdsin cstrong_operator_topology_topspace
@@ -470,7 +470,7 @@ proof -
   have \<open>((\<lambda>F. \<Sum>i\<in>F. a i *\<^sub>V \<psi>) \<longlongrightarrow> b *\<^sub>V \<psi>) (finite_subsets_at_top I)\<close> for \<psi>
     using has_sum_def by blast
   then have \<open>limitin cstrong_operator_topology (\<lambda>F. \<Sum>i\<in>F. a i) b (finite_subsets_at_top I)\<close>
-    by (auto simp add: limitin_cstrong_operator_topology cblinfun.sum_left)
+    by (auto simp add: limitin_cstrong_operator_topology tendsto_coordinatewise cblinfun.sum_left)
   then show \<open>b \<in> A\<close>
     using 1 closed apply (rule limitin_closedin)
     by simp

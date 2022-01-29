@@ -579,7 +579,6 @@ lemma tensor_op_cbilinear[simp]: \<open>cbilinear tensor_op\<close>
   by (simp add: bounded_cbilinear.add_left bounded_cbilinear.add_right cbilinear_def clinearI tensor_op_scaleC_left tensor_op_scaleC_right)
 
 lemma tensor_butter: \<open>butterket i j \<otimes>\<^sub>o butterket k l = butterket (i,k) (j,l)\<close>
-  for i :: "_" and j :: "_" and k :: "_" and l :: "_"
   apply (rule equal_ket, rename_tac x, case_tac x)
   apply (auto simp flip: tensor_ell2_ket simp: tensor_op_ell2 butterfly_def)
   by (auto simp: tensor_ell2_scaleC1 tensor_ell2_scaleC2)
