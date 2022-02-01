@@ -547,6 +547,168 @@ lemma limit_in_closure:
 lemma ket_CARD_1_is_1: \<open>ket x = 1\<close> for x :: \<open>'a::CARD_1\<close>
   apply transfer by simp
 
+lemma filterlim_nhdsin_iff_limitin:
+  \<open>l \<in> topspace T \<and> filterlim f (nhdsin T l) F \<longleftrightarrow> limitin T f l F\<close>
+  unfolding limitin_def filterlim_def eventually_filtermap le_filter_def eventually_nhdsin 
+  apply safe
+    apply simp
+   apply meson
+  by (metis (mono_tags, lifting) eventually_mono)
+
+(* TODO replace *) thm adjoint_eqI
+lemma adjoint_eqI:
+  fixes G:: \<open>'b::chilbert_space \<Rightarrow>\<^sub>C\<^sub>L 'a::complex_inner\<close>
+    and F:: \<open>'a \<Rightarrow>\<^sub>C\<^sub>L 'b\<close>
+  assumes \<open>\<And>x y. \<langle>(cblinfun_apply F) x, y\<rangle> = \<langle>x, (cblinfun_apply G) y\<rangle>\<close>
+  shows \<open>F = G*\<close>
+  using assms apply transfer using cadjoint_eqI by auto
+
+
+lemma adj_uminus: \<open>(-A)* = - (A*)\<close>
+  apply (rule adjoint_eqI[symmetric])
+  by (simp add: cblinfun.minus_left cinner_adj_left)
+
+lemma cblinfun_compose_sum_left: \<open>(\<Sum>i\<in>S. g i) o\<^sub>C\<^sub>L x = (\<Sum>i\<in>S. g i o\<^sub>C\<^sub>L x)\<close>
+  apply (induction S rule:infinite_finite_induct)
+  by (auto simp: cblinfun_compose_add_left)
+
+lemma cblinfun_compose_sum_right: \<open>x o\<^sub>C\<^sub>L (\<Sum>i\<in>S. g i) = (\<Sum>i\<in>S. x o\<^sub>C\<^sub>L g i)\<close>
+  apply (induction S rule:infinite_finite_induct)
+  by (auto simp: cblinfun_compose_add_right)
+
+
+lemma pullback_topology_bi_cont: 
+  fixes g :: \<open>'a \<Rightarrow> ('b \<Rightarrow> 'c::topological_space)\<close>
+    and f :: \<open>'a \<Rightarrow> 'a \<Rightarrow> 'a\<close> and f' :: \<open>'c \<Rightarrow> 'c \<Rightarrow> 'c\<close>
+  assumes gf_f'g: \<open>\<And>a b i. g (f a b) i = f' (g a i) (g b i)\<close>
+  assumes f'_cont: \<open>\<And>a' b'. (case_prod f' \<longlongrightarrow> f' a' b') (nhds a' \<times>\<^sub>F nhds b')\<close>
+  defines \<open>T \<equiv> pullback_topology UNIV g euclidean\<close>
+  shows \<open>LIM (x,y) nhdsin T a \<times>\<^sub>F nhdsin T b. f x y :> nhdsin T (f a b)\<close>
+proof -
+  have topspace[simp]: \<open>topspace T = UNIV\<close>
+    unfolding T_def topspace_pullback_topology by simp
+  have openin: \<open>openin T U \<longleftrightarrow> (\<exists>V. open V \<and> U = g -` V)\<close> for U
+    by (simp add: assms openin_pullback_topology)
+
+  have 1: \<open>nhdsin T a = filtercomap g (nhds (g a))\<close>
+    for a :: 'a
+    by (auto simp add: filter_eq_iff eventually_filtercomap eventually_nhds eventually_nhdsin openin)
+
+  have \<open>((g \<circ> case_prod f) \<longlongrightarrow> g (f a b)) (nhdsin T a \<times>\<^sub>F nhdsin T b)\<close>
+  proof (unfold tendsto_def, intro allI impI)
+    fix S assume \<open>open S\<close> and gfS: \<open>g (f a b) \<in> S\<close>
+    obtain U where gf_PiE: \<open>g (f a b) \<in> Pi\<^sub>E UNIV U\<close> and openU: \<open>\<forall>i. openin euclidean (U i)\<close>
+      and finiteD: \<open>finite {i. U i \<noteq> topspace euclidean}\<close> and US: \<open>Pi\<^sub>E UNIV U \<subseteq> S\<close>
+      using product_topology_open_contains_basis[OF \<open>open S\<close>[unfolded open_fun_def] gfS]
+      by auto
+
+    define D where \<open>D = {i. U i \<noteq> UNIV}\<close>
+    with finiteD have \<open>finite D\<close>
+      by auto
+
+    from openU have openU: \<open>open (U i)\<close> for i
+      by auto
+
+    have *: \<open>f' (g a i) (g b i) \<in> U i\<close> for i
+      by (metis PiE_mem gf_PiE iso_tuple_UNIV_I gf_f'g)
+
+    have \<open>\<forall>\<^sub>F x in nhds (g a i) \<times>\<^sub>F nhds (g b i). case_prod f' x \<in> U i\<close> for i
+      using tendsto_def[THEN iffD1, rule_format, OF f'_cont openU *, of i] by -
+
+    then obtain Pa Pb where \<open>eventually (Pa i) (nhds (g a i))\<close> and \<open>eventually (Pb i) (nhds (g b i))\<close>
+      and PaPb_plus: \<open>(\<forall>x y. Pa i x \<longrightarrow> Pb i y \<longrightarrow> f' x y \<in> U i)\<close> for i
+      unfolding eventually_prod_filter by (metis prod.simps(2))
+
+    from \<open>\<And>i. eventually (Pa i) (nhds (g a i))\<close>
+    obtain Ua where \<open>open (Ua i)\<close> and a_Ua: \<open>g a i \<in> Ua i\<close> and Ua_Pa: \<open>Ua i \<subseteq> Collect (Pa i)\<close> for i
+      unfolding eventually_nhds
+      apply atomize_elim
+      by (metis mem_Collect_eq subsetI)
+    from \<open>\<And>i. eventually (Pb i) (nhds (g b i))\<close>
+    obtain Ub where \<open>open (Ub i)\<close> and b_Ub: \<open>g b i \<in> Ub i\<close> and Ub_Pb: \<open>Ub i \<subseteq> Collect (Pb i)\<close> for i
+      unfolding eventually_nhds
+      apply atomize_elim
+      by (metis mem_Collect_eq subsetI)
+    have UaUb_plus: \<open>x \<in> Ua i \<Longrightarrow> y \<in> Ub i \<Longrightarrow> f' x y \<in> U i\<close> for i x y
+      by (metis PaPb_plus Ua_Pa Ub_Pb mem_Collect_eq subsetD)
+
+    define Ua' where \<open>Ua' i = (if i\<in>D then Ua i else UNIV)\<close> for i
+    define Ub' where \<open>Ub' i = (if i\<in>D then Ub i else UNIV)\<close> for i
+
+    have Ua'_UNIV: \<open>U i = UNIV \<Longrightarrow> Ua' i = UNIV\<close> for i
+      by (simp add: D_def Ua'_def)
+    have Ub'_UNIV: \<open>U i = UNIV \<Longrightarrow> Ub' i = UNIV\<close> for i
+      by (simp add: D_def Ub'_def)
+    have [simp]: \<open>open (Ua' i)\<close> for i
+      by (simp add: Ua'_def \<open>open (Ua _)\<close>)
+    have [simp]: \<open>open (Ub' i)\<close> for i
+      by (simp add: Ub'_def \<open>open (Ub _)\<close>)
+    have a_Ua': \<open>g a i \<in> Ua' i\<close> for i
+      by (simp add: Ua'_def a_Ua)
+    have b_Ub': \<open>g b i \<in> Ub' i\<close> for i
+      by (simp add: Ub'_def b_Ub)
+    have UaUb'_plus: \<open>a' \<in> Ua' i \<Longrightarrow> b' \<in> Ub' i \<Longrightarrow> f' a' b' \<in> U i\<close> for i a' b'
+      apply (cases \<open>i \<in> D\<close>)
+      using UaUb_plus by (auto simp add: Ua'_def  Ub'_def D_def)
+
+    define Ua'' where \<open>Ua'' = Pi UNIV Ua'\<close>
+    define Ub'' where \<open>Ub'' = Pi UNIV Ub'\<close>
+
+    have \<open>open Ua''\<close>
+      using finiteD Ua'_UNIV
+      apply (auto simp add: open_fun_def Ua''_def PiE_UNIV_domain
+          openin_product_topology_alt D_def intro!: exI[where x=\<open>Ua'\<close>])
+      by (meson Collect_mono rev_finite_subset)
+    have \<open>open Ub''\<close>
+      using finiteD Ub'_UNIV
+      apply (auto simp add: open_fun_def Ub''_def PiE_UNIV_domain
+          openin_product_topology_alt D_def intro!: exI[where x=\<open>Ub'\<close>])
+      by (meson Collect_mono rev_finite_subset)
+    have a_Ua'': \<open>g a \<in> Ua''\<close>
+      by (simp add: Ua''_def a_Ua')
+    have b_Ub'': \<open>g b \<in> Ub''\<close>
+      by (simp add: Ub''_def b_Ub')
+    have UaUb''_plus: \<open>a' \<in> Ua'' \<Longrightarrow> b' \<in> Ub'' \<Longrightarrow> f' (a' i) (b' i) \<in> U i\<close> for i a' b'
+      using UaUb'_plus apply (auto simp add: Ua''_def  Ub''_def)
+      by blast
+
+    define Ua''' where \<open>Ua''' = g -` Ua''\<close>
+    define Ub''' where \<open>Ub''' = g -` Ub''\<close>
+    have \<open>openin T Ua'''\<close>
+      using \<open>open Ua''\<close> by (auto simp: openin Ua'''_def)
+    have \<open>openin T Ub'''\<close>
+      using \<open>open Ub''\<close> by (auto simp: openin Ub'''_def)
+    have a_Ua'': \<open>a \<in> Ua'''\<close>
+      by (simp add: Ua'''_def a_Ua'')
+    have b_Ub'': \<open>b \<in> Ub'''\<close>
+      by (simp add: Ub'''_def b_Ub'')
+    have UaUb'''_plus: \<open>a \<in> Ua''' \<Longrightarrow> b \<in> Ub''' \<Longrightarrow> f' (g a i) (g b i) \<in> U i\<close> for i a b
+      by (simp add: Ua'''_def UaUb''_plus Ub'''_def)
+
+    define Pa' where \<open>Pa' a \<longleftrightarrow> a \<in> Ua'''\<close> for a
+    define Pb' where \<open>Pb' b \<longleftrightarrow> b \<in> Ub'''\<close> for b
+
+    have Pa'_nhd: \<open>eventually Pa' (nhdsin T a)\<close>
+      using \<open>openin T Ua'''\<close>
+      by (auto simp add: Pa'_def eventually_nhdsin intro!: exI[of _ \<open>Ua'''\<close>] a_Ua'')
+    have Pb'_nhd: \<open>eventually Pb' (nhdsin T b)\<close>
+      using \<open>openin T Ub'''\<close>
+      by (auto simp add: Pb'_def eventually_nhdsin intro!: exI[of _ \<open>Ub'''\<close>] b_Ub'')
+    have Pa'Pb'_plus: \<open>(g \<circ> case_prod f) (a, b) \<in> S\<close> if \<open>Pa' a\<close> \<open>Pb' b\<close> for a b
+      using that UaUb'''_plus US
+      by (auto simp add: Pa'_def Pb'_def PiE_UNIV_domain Pi_iff gf_f'g)
+
+    show \<open>\<forall>\<^sub>F x in nhdsin T a \<times>\<^sub>F nhdsin T b. (g \<circ> case_prod f) x \<in> S\<close>
+      using Pa'_nhd Pb'_nhd Pa'Pb'_plus
+      unfolding eventually_prod_filter
+      apply (rule_tac exI[of _ Pa'])
+      apply (rule_tac exI[of _ Pb'])
+      by simp
+  qed
+  then show ?thesis
+    unfolding 1 filterlim_filtercomap_iff by -
+qed
+
 unbundle no_cblinfun_notation
 
 end

@@ -115,6 +115,19 @@ lemma abs_op_pos[simp]: \<open>abs_op a \<ge> 0\<close>
 lemma abs_op_0[simp]: \<open>abs_op 0 = 0\<close>
   unfolding abs_op_def by auto
 
+lemma abs_op_idem[simp]: \<open>abs_op (abs_op a) = abs_op a\<close>
+  by (metis abs_op_def abs_op_pos sqrt_op_unique)
+
+lemma abs_op_uminus[simp]: \<open>abs_op (- a) = abs_op a\<close>
+  by (simp add: abs_op_def adj_uminus bounded_cbilinear.minus_left 
+      bounded_cbilinear.minus_right bounded_cbilinear_cblinfun_compose)
+
+lemma cblinfun_compose_uminus_left: \<open>(- a) o\<^sub>C\<^sub>L b = - (a o\<^sub>C\<^sub>L b)\<close>
+  by (simp add: bounded_cbilinear.minus_left bounded_cbilinear_cblinfun_compose)
+
+lemma cblinfun_compose_uminus_right: \<open>a o\<^sub>C\<^sub>L (- b) = - (a o\<^sub>C\<^sub>L b)\<close>
+  by (simp add: bounded_cbilinear.minus_right bounded_cbilinear_cblinfun_compose)
+
 (* TODO: conway op, 18.2 Corollary *)
 lemma trace_norm_basis_invariance:
   assumes \<open>is_onb E\<close> and \<open>is_onb F\<close>
@@ -144,7 +157,7 @@ proof -
     by simp
 qed
 
-definition trace_class :: \<open>('a::chilbert_space \<Rightarrow>\<^sub>C\<^sub>L 'a) \<Rightarrow> bool\<close> 
+definition trace_class :: \<open>('a::chilbert_space \<Rightarrow>\<^sub>C\<^sub>L 'b::complex_inner) \<Rightarrow> bool\<close> 
   where \<open>trace_class A \<longleftrightarrow> (\<exists>E. is_onb E \<and> (\<lambda>e. cmod ((abs_op A *\<^sub>V e) \<bullet>\<^sub>C e)) abs_summable_on E)\<close>
 
 lemma trace_classI:
@@ -162,7 +175,66 @@ lemma trace_class_0[simp]: \<open>trace_class 0\<close>
   unfolding trace_class_def
   by (auto intro!: exI[of _ some_chilbert_basis] simp: is_onb_def is_normal_some_chilbert_basis)
 
-definition trace_norm where \<open>trace_norm A = (if trace_class A then (\<Sum>e\<in>some_chilbert_basis. cmod ((abs_op A *\<^sub>V e) \<bullet>\<^sub>C e)) else 0)\<close>
+lemma trace_class_plus[simp]: \<open>trace_class t \<Longrightarrow> trace_class u \<Longrightarrow> trace_class (t + u)\<close>
+  sorry
+
+lemma trace_class_uminus[simp]: \<open>trace_class t \<Longrightarrow> trace_class (-t)\<close>
+  apply (auto simp add: trace_class_def)
+  sorry
+
+lemma trace_class_minus[simp]: \<open>trace_class t \<Longrightarrow> trace_class u \<Longrightarrow> trace_class (t - u)\<close>
+  by (metis trace_class_plus trace_class_uminus uminus_add_conv_diff)
+
+definition trace_norm where \<open>trace_norm A = (if trace_class A then (\<Sum>\<^sub>\<infinity>e\<in>some_chilbert_basis. cmod ((abs_op A *\<^sub>V e) \<bullet>\<^sub>C e)) else 0)\<close>
+
+definition trace where \<open>trace A = (if trace_class A then (\<Sum>\<^sub>\<infinity>e\<in>some_chilbert_basis. (A *\<^sub>V e) \<bullet>\<^sub>C e) else 0)\<close>
+
+lemma trace_0[simp]: \<open>trace 0 = 0\<close>
+  unfolding trace_def by simp
+
+lemma trace_abs_op[simp]: \<open>trace (abs_op A) = trace_norm A\<close>
+  sorry
+
+lemma trace_class_butterfly[simp]: \<open>trace_class (butterfly x y)\<close>
+  sorry
+
+lemma trace_butterfly_comp: \<open>trace (butterfly x y o\<^sub>C\<^sub>L a) = y \<bullet>\<^sub>C (a *\<^sub>V x)\<close>
+  sorry
+
+lemma trace_butterfly: \<open>trace (butterfly x y) = y \<bullet>\<^sub>C x\<close>
+  using trace_butterfly_comp[where a=id_cblinfun] by auto
+
+(* TODO: true? *)
+lemma circularity_of_trace_class: \<open>trace_class (a o\<^sub>C\<^sub>L b) \<Longrightarrow> trace_class (b o\<^sub>C\<^sub>L a)\<close>
+  sorry
+
+(* TODO: true in this form? Or needs "trace_class a"?*)
+lemma circularity_of_trace: \<open>trace (a o\<^sub>C\<^sub>L b) = trace (b o\<^sub>C\<^sub>L a)\<close>
+  sorry
+
+lemma trace_class_comp_left: \<open>trace_class a \<Longrightarrow> trace_class (a o\<^sub>C\<^sub>L b)\<close>
+  sorry
+
+lemma trace_class_comp_right: \<open>trace_class b \<Longrightarrow> trace_class (a o\<^sub>C\<^sub>L b)\<close>
+  sorry
+
+lemma trace_norm_comp_left: \<open>trace_class a \<Longrightarrow> trace_norm (a o\<^sub>C\<^sub>L b) \<le> trace_norm a * norm b\<close>
+  sorry
+
+lemma trace_norm_comp_right: \<open>trace_class b \<Longrightarrow> trace_norm (a o\<^sub>C\<^sub>L b) \<le> norm a * trace_norm b\<close>
+  sorry
+
+lemma trace_plus: \<open>trace_class a \<Longrightarrow> trace (a + b) = trace a + trace b\<close>
+  sorry
+
+lemma trace_sum:
+  assumes \<open>\<And>i. i\<in>I \<Longrightarrow> trace_class (a i)\<close>
+  shows \<open>trace (\<Sum>i\<in>I. a i) = (\<Sum>i\<in>I. trace (a i))\<close>
+  using assms apply (induction I rule:infinite_finite_induct)
+  by (auto simp: trace_plus)
+
+lemma bounded_clinear_trace_duality: \<open>trace_class t \<Longrightarrow> bounded_clinear (\<lambda>a. trace (t o\<^sub>C\<^sub>L a))\<close>
+  sorry
 
 typedef (overloaded) 'a::chilbert_space trace_class = \<open>Collect trace_class :: ('a \<Rightarrow>\<^sub>C\<^sub>L 'a) set\<close>
   by (auto intro!: exI[of _ 0])

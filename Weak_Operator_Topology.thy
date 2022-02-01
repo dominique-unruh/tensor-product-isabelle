@@ -53,6 +53,7 @@ lemma cweak_operator_topology_weaker_than_euclidean:
   by (metis (mono_tags, lifting) continuous_map_compose continuous_map_eq cstrong_operator_topology_weaker_than_euclidean wot_weaker_than_sot o_def)
 
 
+(* TODO rename *)
 lemma cweak_operator_topology_continuous_evaluation:
   "continuous_map cweak_operator_topology euclidean (\<lambda>f. cinner x (f *\<^sub>V y))"
 proof -
@@ -138,12 +139,7 @@ lemma limitin_cweak_operator_topology:
   by (simp add: cweak_operator_topology_def limitin_pullback_topology tendsto_coordinatewise)
 
 lemma filterlim_cweak_operator_topology: \<open>filterlim f (nhdsin cweak_operator_topology l) = limitin cweak_operator_topology f l\<close>
-  unfolding limitin_def filterlim_def eventually_filtermap le_filter_def eventually_nhdsin cweak_operator_topology_topspace
-  apply (intro ext)
-  apply safe
-    apply simp
-   apply meson
-  by (metis (mono_tags, lifting) eventually_mono)
+  by (auto simp: cweak_operator_topology_topspace simp flip: filterlim_nhdsin_iff_limitin)
 
 instance cblinfun_wot :: (complex_normed_vector, complex_inner) t2_space
 proof intro_classes
@@ -185,142 +181,21 @@ lemma transfer_euclidean_cweak_operator_topology[transfer_rule]:
 lemma openin_cweak_operator_topology: \<open>openin cweak_operator_topology U \<longleftrightarrow> (\<exists>V. open V \<and> U = (\<lambda>a (x,y). cinner x (a *\<^sub>V y)) -` V)\<close>
   by (simp add: cweak_operator_topology_def openin_pullback_topology)
 
-lemma cweak_operator_topology_plus_cont: \<open>LIM x nhdsin cweak_operator_topology a \<times>\<^sub>F nhdsin cweak_operator_topology b.
-            fst x + snd x :> nhdsin cweak_operator_topology (a + b)\<close>
+lemma cweak_operator_topology_plus_cont: \<open>LIM (x,y) nhdsin cweak_operator_topology a \<times>\<^sub>F nhdsin cweak_operator_topology b.
+            x + y :> nhdsin cweak_operator_topology (a + b)\<close>
 proof -
-  have 1: \<open>nhdsin cweak_operator_topology a = filtercomap (\<lambda>a (x,y). cinner x (a *\<^sub>V y)) (nhds (\<lambda>(x,y). cinner x (a *\<^sub>V y)))\<close>
-    for a :: \<open>'a \<Rightarrow>\<^sub>C\<^sub>L 'b\<close>
-    by (auto simp add: filter_eq_iff eventually_filtercomap eventually_nhds eventually_nhdsin
-        cweak_operator_topology_topspace openin_cweak_operator_topology)
-
-  have \<open>(((\<lambda>a (x, y). x \<bullet>\<^sub>C (a *\<^sub>V y)) \<circ> (\<lambda>x. fst x + snd x)) \<longlongrightarrow> (\<lambda>a (x, y). x \<bullet>\<^sub>C (a *\<^sub>V y)) (a + b))
-     (nhdsin cweak_operator_topology a \<times>\<^sub>F nhdsin cweak_operator_topology b)\<close>
-  proof (unfold tendsto_def, intro allI impI)
-    fix S assume \<open>open S\<close> and \<open>(\<lambda>(x, y). x \<bullet>\<^sub>C ((a + b) *\<^sub>V y)) \<in> S\<close>
-    obtain U where in_PiE: \<open>(\<lambda>(x, y). x \<bullet>\<^sub>C ((a + b) *\<^sub>V y)) \<in> Pi\<^sub>E UNIV U\<close> and openU: \<open>\<forall>xy. openin euclidean (U xy)\<close>
-      and finiteD: \<open>finite {xy. U xy \<noteq> topspace euclidean}\<close> and US: \<open>Pi\<^sub>E UNIV U \<subseteq> S\<close>
-      using product_topology_open_contains_basis[OF \<open>open S\<close>[unfolded open_fun_def] \<open>(\<lambda>(x, y). x \<bullet>\<^sub>C ((a + b) *\<^sub>V y)) \<in> S\<close>]
-      by auto
-
-    define D where \<open>D = {i. U i \<noteq> UNIV}\<close>
-    with finiteD have \<open>finite D\<close>
-      by auto
-
-    from openU have openU: \<open>open (U i)\<close> for i
-      using open_openin by blast
-
-    from in_PiE
-    have \<open>x \<bullet>\<^sub>C (a *\<^sub>V y) + x \<bullet>\<^sub>C (b *\<^sub>V y) \<in> U (x,y)\<close> for x y
-      by (simp add: PiE_UNIV_domain Pi_iff cblinfun.add_left cinner_add_right)
-
-    then have \<open>\<forall>\<^sub>F c in nhds (x \<bullet>\<^sub>C (a *\<^sub>V y)) \<times>\<^sub>F nhds (x \<bullet>\<^sub>C (b *\<^sub>V y)).
-            (fst c + snd c) \<in> U (x,y)\<close> for x y
-      using openU tendsto_add_Pair tendsto_def by fastforce
-
-    then obtain Pa Pb where Pa_nhds: \<open>eventually (Pa x y) (nhds (x \<bullet>\<^sub>C (a *\<^sub>V y)))\<close> and Pb_nhds: \<open>eventually (Pb x y) (nhds (x \<bullet>\<^sub>C (b *\<^sub>V y)))\<close>
-      and PaPb_plus: \<open>(\<forall>n m. Pa x y n \<longrightarrow> Pb x y m \<longrightarrow> fst (n, m) + snd (n, m) \<in> U (x,y))\<close>
-    for x y
-      unfolding eventually_prod_filter
-      by metis
-
-    from Pa_nhds
-    obtain Ua where \<open>open (Ua x y)\<close> and a_Ua: \<open>x \<bullet>\<^sub>C (a *\<^sub>V y) \<in> Ua x y\<close> and Ua_Pa: \<open>Ua x y \<subseteq> Collect (Pa x y)\<close> for x y
-      unfolding eventually_nhds
-      apply atomize_elim
-      by (metis mem_Collect_eq subsetI)
-    from Pb_nhds
-    obtain Ub where \<open>open (Ub x y)\<close> and b_Ub: \<open>x \<bullet>\<^sub>C (b *\<^sub>V y) \<in> Ub x y\<close> and Ub_Pb: \<open>Ub x y \<subseteq> Collect (Pb x y)\<close> for x y
-      unfolding eventually_nhds
-      apply atomize_elim
-      by (metis mem_Collect_eq subsetI)
-    have UaUb_plus: \<open>c \<in> Ua x y \<Longrightarrow> d \<in> Ub x y \<Longrightarrow> c + d \<in> U (x,y)\<close> for x y c d
-      by (metis PaPb_plus Ua_Pa Ub_Pb fst_eqD mem_Collect_eq snd_conv subsetD)
-
-    define Ua' where \<open>Ua' = (\<lambda>(x,y). if (x,y)\<in>D then Ua x y else UNIV)\<close> for x y
-    define Ub' where \<open>Ub' = (\<lambda>(x,y). if (x,y)\<in>D then Ub x y else UNIV)\<close> for x y
-
-    have Ua'_UNIV: \<open>U xy = UNIV \<Longrightarrow> Ua' xy = UNIV\<close> for xy
-      by (auto simp add: D_def Ua'_def)
-    have Ub'_UNIV: \<open>U xy = UNIV \<Longrightarrow> Ub' xy = UNIV\<close> for xy
-      by (auto simp add: D_def Ub'_def)
-    have [simp]: \<open>open (Ua' (x,y))\<close> for x y
-      by (simp add: Ua'_def \<open>open (Ua _ _)\<close>)
-    have [simp]: \<open>open (Ub' (x,y))\<close> for x y
-      by (simp add: Ub'_def \<open>open (Ub _ _)\<close>)
-    have a_Ua': \<open>x \<bullet>\<^sub>C (a *\<^sub>V y) \<in> Ua' (x,y)\<close> for x y
-      by (simp add: Ua'_def a_Ua)
-    have b_Ub': \<open>x \<bullet>\<^sub>C (b *\<^sub>V y) \<in> Ub' (x,y)\<close> for x y
-      by (simp add: Ub'_def b_Ub)
-    have UaUb'_plus: \<open>a \<in> Ua' (x,y) \<Longrightarrow> b \<in> Ub' (x,y) \<Longrightarrow> a + b \<in> U (x,y)\<close> for x y a b
-      apply (cases \<open>(x,y) \<in> D\<close>)
-      using UaUb_plus by (auto simp add: Ua'_def  Ub'_def D_def)
-
-    define Ua'' where \<open>Ua'' = Pi UNIV Ua'\<close>
-    define Ub'' where \<open>Ub'' = Pi UNIV Ub'\<close>
-
-    have \<open>open Ua''\<close>
-      using finiteD 
-      apply (auto simp add: openin_cweak_operator_topology open_fun_def Ua''_def PiE_UNIV_domain
-          openin_product_topology_alt D_def intro!: exI[where x=\<open>Ua'\<close>])
-      using Ua'_UNIV by (metis (mono_tags, lifting) mem_Collect_eq rev_finite_subset subset_eq)
-    have \<open>open Ub''\<close>
-      using finiteD
-      apply (auto simp add: openin_cweak_operator_topology open_fun_def Ub''_def PiE_UNIV_domain
-          openin_product_topology_alt D_def intro!: exI[where x=\<open>Ub'\<close>])
-      using Ub'_UNIV by (metis (mono_tags, lifting) mem_Collect_eq rev_finite_subset subset_eq)
-    have a_Ua'': \<open>(\<lambda>(x, y). x \<bullet>\<^sub>C (a *\<^sub>V y)) \<in> Ua''\<close>
-      using a_Ua' Ua''_def by force
-    have b_Ub'': \<open>(\<lambda>(x, y). x \<bullet>\<^sub>C (b *\<^sub>V y)) \<in> Ub''\<close>
-      using Ub''_def b_Ub' by force
-    have UaUb''_plus: \<open>a \<in> Ua'' \<Longrightarrow> b \<in> Ub'' \<Longrightarrow> a i + b i \<in> U i\<close> for i a b
-      using UaUb'_plus apply (auto simp add: Ua''_def  Ub''_def)
-      by (metis PiE UNIV_I prod.collapse)
-
-    define Ua''' where \<open>Ua''' = (\<lambda>a (x, y). x \<bullet>\<^sub>C (a *\<^sub>V y)) -` Ua''\<close>
-    define Ub''' where \<open>Ub''' = (\<lambda>a (x, y). x \<bullet>\<^sub>C (a *\<^sub>V y)) -` Ub''\<close>
-    have \<open>openin cweak_operator_topology Ua'''\<close>
-      thm openin_cweak_operator_topology
-      using \<open>open Ua''\<close> by (auto simp: openin_cweak_operator_topology Ua'''_def)
-    have \<open>openin cweak_operator_topology Ub'''\<close>
-      using \<open>open Ub''\<close> by (auto simp: openin_cweak_operator_topology Ub'''_def)
-    have a_Ua'': \<open>a \<in> Ua'''\<close>
-      by (simp add: Ua'''_def a_Ua'')
-    have b_Ub'': \<open>b \<in> Ub'''\<close>
-      by (simp add: Ub'''_def b_Ub'')
-    have UaUb'''_plus: \<open>a \<in> Ua''' \<Longrightarrow> b \<in> Ub''' \<Longrightarrow> x \<bullet>\<^sub>C (a *\<^sub>V y) + x \<bullet>\<^sub>C (b *\<^sub>V y) \<in> U (x,y)\<close> for x y a b
-      using Ua'''_def UaUb''_plus Ub'''_def by force
-
-    define Pa' where \<open>Pa' a \<longleftrightarrow> a \<in> Ua'''\<close> for a
-    define Pb' where \<open>Pb' b \<longleftrightarrow> b \<in> Ub'''\<close> for b
-
-    have Pa'_nhd: \<open>eventually Pa' (nhdsin cweak_operator_topology a)\<close>
-      using \<open>openin cweak_operator_topology Ua'''\<close>
-      by (auto simp add: Pa'_def eventually_nhdsin intro!: exI[of _ \<open>Ua'''\<close>] a_Ua'')
-    have Pb'_nhd: \<open>eventually Pb' (nhdsin cweak_operator_topology b)\<close>
-      using \<open>openin cweak_operator_topology Ub'''\<close>
-      by (auto simp add: Pb'_def eventually_nhdsin intro!: exI[of _ \<open>Ub'''\<close>] b_Ub'')
-    have Pa'Pb'_plus: \<open>((\<lambda>a (x, y). x \<bullet>\<^sub>C (a *\<^sub>V y)) \<circ> (\<lambda>x. fst x + snd x)) (a, b) \<in> S\<close> if \<open>Pa' a\<close> \<open>Pb' b\<close> for a b
-      using that UaUb'''_plus US
-      by (simp add: Pa'_def Pb'_def PiE_UNIV_domain Pi_iff cblinfun.add_left cinner_add_right subset_eq)
-
-    show \<open>\<forall>\<^sub>F x in nhdsin cweak_operator_topology a \<times>\<^sub>F nhdsin cweak_operator_topology b.
-            ((\<lambda>a (x, y). x \<bullet>\<^sub>C (a *\<^sub>V y)) \<circ> (\<lambda>x. fst x + snd x)) x \<in> S\<close>
-      using Pa'_nhd Pb'_nhd Pa'Pb'_plus
-      unfolding eventually_prod_filter
-      apply (rule_tac exI[of _ Pa'])
-      apply (rule_tac exI[of _ Pb'])
-      by simp
-  qed
-  then show ?thesis
-    unfolding 1
-    unfolding filterlim_filtercomap_iff by -
+  show ?thesis
+    unfolding cweak_operator_topology_def
+    apply (rule_tac pullback_topology_bi_cont[where f'=plus])
+    by (auto simp: case_prod_unfold tendsto_add_Pair cinner_add_right cblinfun.add_left)
 qed
 
 instance cblinfun_wot :: (complex_normed_vector, complex_inner) topological_group_add
 proof intro_classes
   show \<open>((\<lambda>x. fst x + snd x) \<longlongrightarrow> a + b) (nhds a \<times>\<^sub>F nhds b)\<close> for a b :: \<open>('a,'b) cblinfun_wot\<close>
     apply transfer
-    by (rule cweak_operator_topology_plus_cont)
+    using cweak_operator_topology_plus_cont
+    by (auto simp: case_prod_unfold)
 
   have *: \<open>continuous_map cweak_operator_topology cweak_operator_topology uminus\<close>
     apply (subst continuous_on_cweak_operator_topo_iff_coordinatewise)
