@@ -234,6 +234,16 @@ lemma bounded_clinear_equal_ket:
   apply (rule bounded_clinear_eq_on[of f g \<open>range ket\<close>])
   using assms by auto
 
+lemma bounded_antilinear_equal_ket:
+  fixes f g :: \<open>'a ell2 \<Rightarrow> _\<close>
+  assumes \<open>bounded_antilinear f\<close>
+  assumes \<open>bounded_antilinear g\<close>
+  assumes \<open>\<And>i. f (ket i) = g (ket i)\<close>
+  shows \<open>f = g\<close>
+  apply (rule ext)
+  apply (rule bounded_antilinear_eq_on[of f g \<open>range ket\<close>])
+  using assms by auto
+
 lemma cspan_eqI:
   assumes \<open>\<And>a. a\<in>A \<Longrightarrow> a\<in>cspan B\<close>
   assumes \<open>\<And>b. b\<in>B \<Longrightarrow> b\<in>cspan A\<close>
@@ -348,6 +358,7 @@ lemma limitin_closedin:
   by (metis assms(1) assms(2) assms(3) assms(4) closure_of_eq limitin_closure_of)
 
 
+(* TODO: bounded_linear is enough *)
 lemma infsum_bounded_clinear:
   assumes \<open>bounded_clinear f\<close>
   assumes \<open>g summable_on S\<close>
@@ -356,6 +367,7 @@ lemma infsum_bounded_clinear:
   using assms cblinfun_apply_induct cblinfun.additive_right
   by (auto simp: clinear_continuous_within)
 
+(* TODO: bounded_linear is enough *)
 lemma has_sum_bounded_clinear: 
   assumes \<open>bounded_clinear f\<close>
   assumes \<open>has_sum g S x\<close>
@@ -364,6 +376,7 @@ lemma has_sum_bounded_clinear:
   using assms cblinfun_apply_induct cblinfun.additive_right apply auto
   using clinear_continuous_within isCont_def by fastforce
 
+(* TODO: bounded_linear is enough *)
 lemma abs_summable_on_bounded_clinear: 
   assumes \<open>bounded_clinear f\<close>
   assumes \<open>g abs_summable_on S\<close>

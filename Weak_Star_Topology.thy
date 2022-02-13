@@ -5,7 +5,7 @@ begin
 definition weak_star_topology :: \<open>('a::chilbert_space \<Rightarrow>\<^sub>C\<^sub>L'b::chilbert_space) topology\<close>
   where \<open>weak_star_topology = pullback_topology UNIV (\<lambda>x t. if trace_class t then trace (t o\<^sub>C\<^sub>L x) else 0) euclidean\<close>
 
-lemma weak_star_topology_topspace:
+lemma weak_star_topology_topspace[simp]:
   "topspace weak_star_topology = UNIV"
   unfolding weak_star_topology_def topspace_pullback_topology topspace_euclidean by auto
 
@@ -96,8 +96,11 @@ lemma weak_star_topology_weaker_than_euclidean:
   by (auto intro!: linear_continuous_on bounded_clinear.bounded_linear bounded_clinear_trace_duality)
 
 
-typedef (overloaded) ('a,'b) cblinfun_weak_star = \<open>UNIV :: ('a::complex_normed_vector \<Rightarrow>\<^sub>C\<^sub>L 'b::complex_normed_vector) set\<close> ..
+typedef (overloaded) ('a,'b) cblinfun_weak_star = \<open>UNIV :: ('a::complex_normed_vector \<Rightarrow>\<^sub>C\<^sub>L 'b::complex_normed_vector) set\<close> 
+  morphisms from_weak_star to_weak_star ..
 setup_lifting type_definition_cblinfun_weak_star
+
+lift_definition id_weak_star :: \<open>('a::complex_normed_vector, 'a) cblinfun_weak_star\<close> is id_cblinfun .
 
 instantiation cblinfun_weak_star :: (complex_normed_vector, complex_normed_vector) complex_vector begin
 lift_definition scaleC_cblinfun_weak_star :: \<open>complex \<Rightarrow> ('a, 'b) cblinfun_weak_star \<Rightarrow> ('a, 'b) cblinfun_weak_star\<close> 
@@ -147,8 +150,8 @@ instance cblinfun_weak_star :: (chilbert_space, chilbert_space) t2_space
 proof intro_classes
   fix a b :: \<open>('a,'b) cblinfun_weak_star\<close>
   assume \<open>a \<noteq> b\<close>
-  then have \<open>Abs_cblinfun_wot (Rep_cblinfun_weak_star a) \<noteq> Abs_cblinfun_wot (Rep_cblinfun_weak_star b)\<close>
-    by (simp add: Abs_cblinfun_wot_inject Rep_cblinfun_weak_star_inject)
+  then have \<open>Abs_cblinfun_wot (from_weak_star a) \<noteq> Abs_cblinfun_wot (from_weak_star b)\<close>
+    by (simp add: Abs_cblinfun_wot_inject from_weak_star_inject)
   from hausdorff[OF this]
 
   show \<open>a \<noteq> b \<Longrightarrow> \<exists>U V. open U \<and> open V \<and> a \<in> U \<and> b \<in> V \<and> U \<inter> V = {}\<close>
@@ -235,6 +238,11 @@ proof -
     using * by auto
 qed
 
+lemma continuous_map_right_comp_weak_star: 
+  \<open>continuous_map weak_star_topology weak_star_topology (\<lambda>b::'b::chilbert_space \<Rightarrow>\<^sub>C\<^sub>L _. b o\<^sub>C\<^sub>L a)\<close> 
+  for a :: \<open>'a::chilbert_space \<Rightarrow>\<^sub>C\<^sub>L 'b::chilbert_space\<close>
+  sorry
+
 lemma continuous_map_scaleC_weak_star: \<open>continuous_map weak_star_topology weak_star_topology (scaleC c)\<close>
   apply (subst asm_rl[of \<open>scaleC c = (o\<^sub>C\<^sub>L) (c *\<^sub>C id_cblinfun)\<close>])
    apply auto[1]
@@ -320,7 +328,7 @@ lemma weak_star_closure_is_csubspace'[simp]:
   fixes A::"('a::chilbert_space \<Rightarrow>\<^sub>C\<^sub>L 'b::chilbert_space) set"
   assumes \<open>csubspace A\<close>
   shows \<open>csubspace (weak_star_topology closure_of A)\<close>
-  using weak_star_closure_is_csubspace[of \<open>Abs_cblinfun_weak_star ` A\<close>] assms
+  using weak_star_closure_is_csubspace[of \<open>to_weak_star ` A\<close>] assms
   apply (transfer fixing: A)
   by simp
 
