@@ -24,9 +24,9 @@ so that it can transfer things back and forth.
 If \<^term>\<open>P\<close> does not contain \<^typ>\<open>'abs\<close>, we can erase the \<^term>\<open>with_type2\<close> using the \<open>Types_To_Sets\<close> mechanism.
 See lemma \<open>erasure_example\<close> below.
 \<close>
-definition \<open>with_type2 S R C rep_ops P \<longleftrightarrow> S\<noteq>{} \<and> C S rep_ops \<and> nice_rel C S R
+definition \<open>with_type2 = (\<lambda>(C,R) (S,rep_ops) P. S\<noteq>{} \<and> C S rep_ops \<and> nice_rel C S R
     \<and> (\<forall>Rep Abs abs_ops. type_definition Rep Abs S \<longrightarrow> (R (\<lambda>x y. x = Rep y) rep_ops abs_ops) \<longrightarrow> 
-            P Rep Abs)\<close>
+            P Rep Abs))\<close>
   for S :: \<open>'rep set\<close> and P :: \<open>('abs \<Rightarrow> 'rep) \<Rightarrow> ('rep \<Rightarrow> 'abs) \<Rightarrow> bool\<close>
   and R :: \<open>('rep \<Rightarrow> 'abs \<Rightarrow> bool) \<Rightarrow> ('rep_ops \<Rightarrow> 'abs_ops \<Rightarrow> bool)\<close>
   and C :: \<open>'rep set \<Rightarrow> 'rep_ops \<Rightarrow> bool\<close> and rep_ops :: \<open>'rep_ops\<close>
@@ -36,10 +36,10 @@ Those do not matter but it may be convenient to have access to the same Abs as i
 Having rep_ops might also be nice.
  *)
 
-definition with_type_class_type where \<open>with_type_class_type S (x::unit) = True\<close>
+definition with_type_class_type where \<open>with_type_class_type = ((\<lambda>_ (_::unit). True), (\<lambda>_. (=)))\<close>
 
 (* Demonstration *)
-lemma \<open>with_type S P = with_type2 S (\<lambda>_. (=)) with_type_class_type () P\<close>
+lemma \<open>with_type S P = with_type2 with_type_class_type (S,()) P\<close>
   by (auto simp: with_type_def with_type2_def with_type_class_type_def nice_rel_def)
 
 syntax "_with_type" :: "type \<Rightarrow> 'a => 'b \<Rightarrow> 'c" ("\<forall>\<^sub>\<tau> _=_. _" [0,0,10] 10)
@@ -60,6 +60,7 @@ parse_translation \<open>[
   val prop = Const(\<^syntax_const>\<open>_constrain\<close>, dummyT) $ prop $ Syntax_Phases.term_of_typ ctxt propT
   in Const(\<^const_name>\<open>with_type\<close>, dummyT) $ carrier $ prop end)
 ]\<close>
+
 term \<open>\<forall>\<^sub>\<tau>'t = N. (rep_t = rep_t)\<close>
 
 lemma with_type_mp: \<open>with_type S P \<Longrightarrow> (\<And>Rep Abs. type_definition Rep Abs S \<Longrightarrow> P Rep Abs \<Longrightarrow> Q Rep Abs) \<Longrightarrow> with_type S Q\<close>
@@ -72,20 +73,21 @@ lemma with_typeI:
   using assms by (simp add: with_type_def)
 
 lemma with_type2I:
-  fixes S :: \<open>'a set\<close> and x :: \<open>'c\<close>
+  fixes Sp :: \<open>'a set \<times> 'c\<close> and CR
+  defines \<open>C \<equiv> fst CR\<close> and \<open>R \<equiv> snd CR\<close> and \<open>S \<equiv> fst Sp\<close> and \<open>p \<equiv> snd Sp\<close>
   assumes \<open>S \<noteq> {}\<close>
-  assumes \<open>C_rep S rep_ops\<close>
-  assumes \<open>nice_rel C_rep S R\<close>
-  assumes \<open>\<And>Rep Abs abs_ops. type_definition Rep Abs S \<Longrightarrow> R (\<lambda>x y. x = Rep y) rep_ops abs_ops \<Longrightarrow> P Rep Abs\<close>
-  shows \<open>with_type2 S R C_rep rep_ops P\<close>
+  assumes \<open>C S p\<close>
+  assumes \<open>nice_rel C S R\<close>
+  assumes \<open>\<And>Rep Abs abs_ops. type_definition Rep Abs S \<Longrightarrow> R (\<lambda>x y. x = Rep y) p abs_ops \<Longrightarrow> P Rep Abs\<close>
+  shows \<open>with_type2 CR Sp P\<close>
   using assms
-  by (auto simp add: with_type2_def)
+  by (auto simp add: with_type2_def case_prod_beta)
 
 lemma with_type_nonempty: \<open>with_type S P \<Longrightarrow> S \<noteq> {}\<close>
   by (simp add: with_type_def)
 
-lemma with_type2_nonempty: \<open>with_type2 S R C p P \<Longrightarrow> S \<noteq> {}\<close>
-  by (simp add: with_type2_def)
+lemma with_type2_nonempty: \<open>with_type2 CR (S,p) P \<Longrightarrow> S \<noteq> {}\<close>
+  by (simp add: with_type2_def case_prod_beta)
 
 lemma with_type_prepare_cancel:
   assumes \<open>with_type S (\<lambda>(_::'a\<Rightarrow>'b) _. P)\<close>
@@ -93,12 +95,13 @@ lemma with_type_prepare_cancel:
   using assms by (auto simp add: with_type_def)
 
 lemma with_type2_prepare_cancel:
-  fixes S :: \<open>'rep set\<close>
-  assumes wt: \<open>with_type2 S R C p (\<lambda>_ (_::'rep\<Rightarrow>'abs). P)\<close>
-  assumes ex: \<open>(\<exists>(Rep::'abs\<Rightarrow>'rep) Abs. type_definition Rep Abs S)\<close>
-  shows \<open>P\<close>
+  fixes Sp :: \<open>'rep set \<times> _\<close>
+  assumes wt: \<open>with_type2 CR Sp (\<lambda>_ (_::'rep\<Rightarrow>'abs). P)\<close>
+  assumes ex: \<open>(\<exists>(Rep::'abs\<Rightarrow>'rep) Abs. type_definition Rep Abs (fst Sp))\<close>
+  shows P
 proof -
-  from ex obtain Rep :: \<open>'abs\<Rightarrow>'rep\<close> and Abs where td: \<open>type_definition Rep Abs S\<close>
+  define S p C R where \<open>S = fst Sp\<close> and \<open>p = snd Sp\<close> and \<open>C = fst CR\<close> and \<open>R = snd CR\<close>
+  with ex obtain Rep :: \<open>'abs\<Rightarrow>'rep\<close> and Abs where td: \<open>type_definition Rep Abs S\<close>
     by auto
   define r where \<open>r = (\<lambda>x y. x = Rep y)\<close>
   have [simp]: \<open>bi_unique r\<close> \<open>right_total r\<close>
@@ -110,14 +113,13 @@ proof -
     apply (subst type_definition.Abs_inverse[OF td])
     by auto
   from wt have nice: \<open>nice_rel C S R\<close> and \<open>C S p\<close>
-    by (simp_all add: with_type2_def)
+    by (simp_all add: with_type2_def p_def R_def S_def C_def case_prod_beta)
   from nice[unfolded nice_rel_def, rule_format, OF \<open>bi_unique r\<close> \<open>right_total r\<close> Sr \<open>C S p\<close>]
   obtain abs_ops where abs_ops: \<open>R (\<lambda>x y. x = Rep y) p abs_ops\<close>
     apply atomize_elim by (auto simp: r_def)
   from td abs_ops wt
   show P
-    unfolding with_type2_def
-    by auto
+    by (auto simp: with_type2_def case_prod_beta S_def p_def R_def)
 qed
 
 unbundle lifting_syntax
@@ -159,30 +161,19 @@ lemma aux:
 lemma bi_unique_left_unique: \<open>bi_unique R \<Longrightarrow> left_unique R\<close>
   by (simp add: bi_unique_alt_def)
 
-axiomatization 
-  carrier :: \<open>int set\<close> and 
-  carrier_plus :: \<open>int \<Rightarrow> int \<Rightarrow> int\<close> and 
-  rel :: \<open>int \<Rightarrow> 'a::semigroup_add \<Rightarrow> bool\<close> 
-  where
-  carrier_nonempty: \<open>carrier \<noteq> {}\<close> and
-  carrier_semigroup: \<open>semigroup_on carrier carrier_plus\<close>
-
-(* lemma nice_sg: \<open>nice_rel semigroup_on carrier (\<lambda>r. r ===> r ===> r)\<close> (* Essentially the same as semigroup_on_Domainp *)
-  by (auto simp: nice_rel_def intro!: semigroup_on_Domainp) *)
-
-
 lemma with_type2_class_axioms:
   fixes Rep :: \<open>'abs \<Rightarrow> 'rep\<close>
+    and CR :: \<open>_ \<times> (('rep\<Rightarrow>'abs\<Rightarrow>bool) \<Rightarrow> ('rep_ops \<Rightarrow> 'abs_ops \<Rightarrow> bool))\<close>
+    and Sp
     and R :: \<open>('rep\<Rightarrow>'abs\<Rightarrow>bool) \<Rightarrow> ('rep_ops \<Rightarrow> 'abs_ops \<Rightarrow> bool)\<close>
     and R2 :: \<open>('rep\<Rightarrow>'abs2\<Rightarrow>bool) \<Rightarrow> ('rep_ops \<Rightarrow> 'abs_ops2 \<Rightarrow> bool)\<close>
+  defines \<open>C \<equiv> fst CR\<close> and \<open>R \<equiv> snd CR\<close> and \<open>S \<equiv> fst Sp\<close> and \<open>p \<equiv> snd Sp\<close>
   assumes trans: \<open>\<And>r :: 'rep \<Rightarrow> 'abs2 \<Rightarrow> bool. bi_unique r \<Longrightarrow> right_total r \<Longrightarrow> (R2 r ===> (\<longleftrightarrow>)) (C (Collect (Domainp r))) axioms\<close>
   assumes nice: \<open>nice_rel C S R2\<close>
-  assumes wt: \<open>with_type2 S R C rep_plus P\<close>
+  assumes wt: \<open>with_type2 CR Sp P\<close>
   assumes ex: \<open>\<exists>(Rep :: 'abs2\<Rightarrow>'rep) Abs. type_definition Rep Abs S\<close>
   shows \<open>\<exists>x::'abs_ops2. axioms x\<close>
 proof -
-  (* define R where \<open>R = (\<lambda>r::'rep\<Rightarrow>'abs\<Rightarrow>bool. r ===> r ===> r)\<close> *)
-  (* define R2 where \<open>R2 = (\<lambda>r::'rep\<Rightarrow>'abs2\<Rightarrow>bool. r ===> r ===> r)\<close> *)
   from ex obtain Rep :: \<open>'abs2\<Rightarrow>'rep\<close> and Abs where td: \<open>type_definition Rep Abs S\<close>
     by auto
   define r where \<open>r x y = (x = Rep y)\<close> for x y
@@ -199,15 +190,15 @@ proof -
     apply (auto simp: r_def Domainp_iff type_definition.Rep)
     by (meson type_definition.Rep_cases)
 
-  from wt have (* nice: \<open>nice_rel C S R\<close> and *) sg: \<open>C S rep_plus\<close>
-    by (simp_all add: with_type2_def)
+  from wt have sg: \<open>C S p\<close>
+    by (simp_all add: with_type2_def C_def S_def p_def case_prod_beta)
 
-  with nice have \<open>Domainp (R2 r) rep_plus\<close>
+  with nice have \<open>Domainp (R2 r) p\<close>
     by (simp add: bi_unique_r nice_rel_def rS right_total_r)
   
   with sg
   have \<open>\<exists>x :: 'abs_ops2. axioms x\<close>
-    apply (transfer' fixing: R2 S rep_plus)
+    apply (transfer' fixing: R2 S p)
     using apply_rsp' local.trans rS by fastforce
   
   then obtain abs_plus :: 'abs_ops2 
@@ -224,9 +215,11 @@ definition semigroup_on :: \<open>'rep set \<Rightarrow> ('rep\<Rightarrow>'rep\
   \<open>semigroup_on S p \<longleftrightarrow> (\<forall>x\<in>S. \<forall>y\<in>S. p x y \<in> S) \<and> 
       (\<forall>x\<in>S. \<forall>y\<in>S. \<forall>z\<in>S. p (p x y) z = p x (p y z))\<close>
 
+definition with_type_class_semigroup_add where
+  \<open>with_type_class_semigroup_add = (semigroup_on, \<lambda>r. r ===> r ===> r)\<close>
 
-lemma
-    semigroup_on_transfer: \<open>((r ===> r ===> r) ===> (\<longleftrightarrow>)) (semigroup_on (Collect (Domainp r))) class.semigroup_add\<close>
+lemma semigroup_on_transfer: 
+  \<open>((r ===> r ===> r) ===> (\<longleftrightarrow>)) (semigroup_on (Collect (Domainp r))) class.semigroup_add\<close>
     if [transfer_rule]: \<open>bi_unique r\<close> \<open>right_total r\<close>
     for r :: \<open>'rep \<Rightarrow> 'abs \<Rightarrow> bool\<close>
   unfolding semigroup_on_def class.semigroup_add_def
@@ -235,26 +228,35 @@ lemma
   unfolding Domainp_rel_fun_iff[OF bi_unique_left_unique[OF \<open>bi_unique r\<close>]]
   by auto
 
-
 lemma nice_rel_semigroup_on: \<open>nice_rel semigroup_on S (\<lambda>r. r ===> r ===> r)\<close>
   by (simp add: Domainp_rel_fun_iff bi_unique_left_unique semigroup_on_def nice_rel_def)
 
 lemma with_type2_semigroup_add:
   fixes Rep :: \<open>'abs \<Rightarrow> int\<close>
-  assumes wt: \<open>with_type2 S (\<lambda>r::int\<Rightarrow>'abs\<Rightarrow>bool. r ===> r ===> r) semigroup_on rep_plus P\<close>
-  assumes ex: \<open>\<exists>(Rep :: 'abs2\<Rightarrow>int) Abs. type_definition Rep Abs S\<close>
+  assumes wt: \<open>with_type2 with_type_class_semigroup_add Sp P\<close>
+  assumes ex: \<open>\<exists>(Rep :: 'abs2\<Rightarrow>int) Abs. type_definition Rep Abs (fst Sp)\<close>
   shows \<open>\<exists>x::'abs2 \<Rightarrow> 'abs2 \<Rightarrow> 'abs2. class.semigroup_add x\<close>
-  using semigroup_on_transfer nice_rel_semigroup_on wt ex
-  by (rule with_type2_class_axioms)
-
+  using _ _ wt ex
+  apply (rule with_type2_class_axioms)
+   apply (auto simp add: with_type_class_semigroup_add_def intro!: semigroup_on_transfer)
+  by (simp add: nice_rel_semigroup_on)
 
 section \<open>Semigroup example\<close>
 
+axiomatization 
+  carrier :: \<open>int set\<close> and 
+  carrier_plus :: \<open>int \<Rightarrow> int \<Rightarrow> int\<close> and 
+  rel :: \<open>int \<Rightarrow> 'a::semigroup_add \<Rightarrow> bool\<close> 
+  where
+  carrier_nonempty: \<open>carrier \<noteq> {}\<close> and
+  carrier_semigroup: \<open>semigroup_on carrier carrier_plus\<close>
+
 lemma example:
   includes lifting_syntax
-  shows \<open>with_type2 carrier (\<lambda>r. r ===> r ===> r) semigroup_on carrier_plus
+  shows \<open>with_type2 with_type_class_semigroup_add (carrier,carrier_plus)
       (\<lambda>Rep (Abs::int \<Rightarrow> 'abs::semigroup_add). undefined (3::nat))\<close>
   apply (rule with_type2I)
+  apply (simp_all add: with_type_class_semigroup_add_def)
      apply (rule carrier_nonempty)
     apply (rule carrier_semigroup)
    apply (rule nice_rel_semigroup_on)
@@ -284,10 +286,10 @@ proof -
   note * = *[unoverload_type 'abs]
   note * = *[OF **]
   note * = *[THEN with_type2_prepare_cancel]
-  then have *: \<open>\<exists>(Rep::'abs::type \<Rightarrow> int) Abs::int \<Rightarrow> 'abs::type. type_definition Rep Abs carrier \<Longrightarrow>
+  then have *: \<open>\<exists>(Rep::'abs::type \<Rightarrow> int) Abs::int \<Rightarrow> 'abs::type. type_definition Rep Abs (fst (carrier, carrier_plus)) \<Longrightarrow>
                 undefined (3::nat)\<close>
     by metis
-  note * = *[rotated, cancel_type_definition]
+  note * = *[rotated, cancel_type_definition, simplified]
   note ** = example[THEN with_type2_nonempty]
   note * = *[OF **]
   then show ?thesis by simp
