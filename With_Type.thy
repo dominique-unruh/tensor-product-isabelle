@@ -4,7 +4,39 @@ begin
 
 section \<open>General stuff\<close>
 
-definition \<open>with_type S P \<longleftrightarrow> S\<noteq>{} \<and> (\<forall>Rep Abs. type_definition Rep Abs S \<longrightarrow> P Rep Abs)\<close>
+ML \<open>
+type with_type_info = {
+  class: class,
+  rep_class_data: string,
+  rep_class_data_thm: thm option, (* Of the form \<open>rep_class_axioms = (const,const)\<close> *)
+  nice_rel: thm, (* nice_rel (fst rep_class_data) S (snd rep_class_data) *)
+  transfer: thm option (* bi_unique r \<Longrightarrow> right_total r \<Longrightarrow> (snd rep_class_data r ===> (\<longleftrightarrow>)) (fst rep_class_data (Collect (Domainp r))) class.class *)
+}
+\<close>
+
+
+ML \<open>
+structure With_Type_Data = Generic_Data (
+  type T = { by_class: with_type_info Symtab.table, by_const: with_type_info Symtab.table }
+  val empty = { by_class = Symtab.empty, by_const = Symtab.empty }
+  fun merge ({by_class,by_const}, {by_class=by_class',by_const=by_const'}) =
+    {by_class = Symtab.merge (K true) (by_class, by_class'),
+     by_const = Symtab.merge (K true) (by_const, by_const') }
+)
+\<close>
+
+ML \<open>
+fun check_with_type_info _ _ = ()
+fun add_with_type_info_generic data context = (check_with_type_info context data;
+  With_Type_Data.map (fn {by_class,by_const} => 
+    {by_class = Symtab.update (#class data, data) by_class,
+     by_const = Symtab.update (#rep_class_data data, data) by_const}) context
+)
+val add_with_type_info_global = Context.theory_map o add_with_type_info_generic
+fun get_with_type_info_by_const_generic context const = 
+  Symtab.lookup (With_Type_Data.get context |> #by_const) const
+val get_with_type_info_by_const = get_with_type_info_by_const_generic o Context.Proof
+\<close>
 
 definition nice_rel where \<open>nice_rel C S R \<longleftrightarrow> (\<forall>r rp. bi_unique r \<longrightarrow> right_total r \<longrightarrow> S = Collect (Domainp r) \<longrightarrow> C S rp \<longrightarrow> (Domainp (R r) rp))\<close>
 
@@ -37,6 +69,22 @@ Having rep_ops might also be nice.
  *)
 
 definition with_type_class_type where \<open>with_type_class_type = ((\<lambda>_ (_::unit). True), (\<lambda>_. (=)))\<close>
+
+lemma nice_rel_type': \<open>nice_rel (fst with_type_class_type) S (snd with_type_class_type)\<close>
+  by (simp add: with_type_class_type_def nice_rel_def Domainp_iff)
+
+
+setup \<open>
+add_with_type_info_global {
+  class = \<^class>\<open>type\<close>,
+  rep_class_data = \<^const_name>\<open>with_type_class_type\<close>,
+  nice_rel = @{thm nice_rel_type'},
+  rep_class_data_thm = NONE,
+  transfer = NONE
+}
+\<close>
+
+definition \<open>with_type S P \<longleftrightarrow> S\<noteq>{} \<and> (\<forall>Rep Abs. type_definition Rep Abs S \<longrightarrow> P Rep Abs)\<close>
 
 (* Demonstration *)
 lemma \<open>with_type S P = with_type2 with_type_class_type (S,()) P\<close>
@@ -86,7 +134,7 @@ lemma with_type2I:
 lemma with_type_nonempty: \<open>with_type S P \<Longrightarrow> S \<noteq> {}\<close>
   by (simp add: with_type_def)
 
-lemma with_type2_nonempty: \<open>with_type2 CR (S,p) P \<Longrightarrow> S \<noteq> {}\<close>
+lemma with_type2_nonempty: \<open>with_type2 CR Sp P \<Longrightarrow> fst Sp \<noteq> {}\<close>
   by (simp add: with_type2_def case_prod_beta)
 
 lemma with_type_prepare_cancel:
@@ -231,7 +279,7 @@ lemma semigroup_on_transfer:
 lemma nice_rel_semigroup_on: \<open>nice_rel semigroup_on S (\<lambda>r. r ===> r ===> r)\<close>
   by (simp add: Domainp_rel_fun_iff bi_unique_left_unique semigroup_on_def nice_rel_def)
 
-lemma with_type2_semigroup_add:
+(* lemma with_type2_semigroup_add:
   fixes Rep :: \<open>'abs \<Rightarrow> int\<close>
   assumes wt: \<open>with_type2 with_type_class_semigroup_add Sp P\<close>
   assumes ex: \<open>\<exists>(Rep :: 'abs2\<Rightarrow>int) Abs. type_definition Rep Abs (fst Sp)\<close>
@@ -239,7 +287,78 @@ lemma with_type2_semigroup_add:
   using _ _ wt ex
   apply (rule with_type2_class_axioms)
    apply (auto simp add: with_type_class_semigroup_add_def intro!: semigroup_on_transfer)
-  by (simp add: nice_rel_semigroup_on)
+  by (simp add: nice_rel_semigroup_on) *)
+
+lemma semigroup_on_transfer': 
+  \<open>bi_unique r \<Longrightarrow> right_total r \<Longrightarrow> (snd with_type_class_semigroup_add r ===> (\<longleftrightarrow>)) (fst with_type_class_semigroup_add (Collect (Domainp r))) class.semigroup_add\<close>
+  by (auto simp add: with_type_class_semigroup_add_def intro!: semigroup_on_transfer)
+
+lemma nice_rel_semigroup_on': \<open>nice_rel (fst with_type_class_semigroup_add) S (snd with_type_class_semigroup_add)\<close>
+  by (simp add: nice_rel_semigroup_on with_type_class_semigroup_add_def)
+
+(* lemmas with_type2_semigroup_add' = with_type2_class_axioms[OF semigroup_on_transfer' nice_rel_semigroup_on'] *)
+
+section \<open>Ring\<close>
+
+type_synonym 'a ring_ops = \<open>('a \<Rightarrow> 'a \<Rightarrow> 'a) \<times> 'a \<times> ('a \<Rightarrow> 'a \<Rightarrow> 'a) \<times> ('a \<Rightarrow> 'a) \<times> ('a \<Rightarrow> 'a \<Rightarrow> 'a)\<close>
+
+axiomatization with_type_class_ring :: 
+  "('a set \<Rightarrow> 'a ring_ops \<Rightarrow> bool) \<times> (('b \<Rightarrow> 'c \<Rightarrow> bool) \<Rightarrow> 'b ring_ops \<Rightarrow> 'c ring_ops \<Rightarrow> bool)"
+
+lemma ring_transfer'[unfolded case_prod_unfold]: 
+  \<open>bi_unique r \<Longrightarrow> right_total r \<Longrightarrow> 
+    (snd with_type_class_ring r ===> (\<longleftrightarrow>)) (fst with_type_class_ring (Collect (Domainp r))) (\<lambda>(a,b,c,d,e). class.ring a b c d e)\<close>
+  sorry
+
+lemma nice_rel_ring': \<open>nice_rel (fst with_type_class_ring) S (snd with_type_class_ring)\<close>
+  sorry
+
+
+section \<open>Finite\<close>
+
+definition with_type_class_finite :: \<open>('a set \<Rightarrow> unit \<Rightarrow> bool) \<times> (('a \<Rightarrow> 'b \<Rightarrow> bool) \<Rightarrow> (unit \<Rightarrow> unit \<Rightarrow> bool))\<close>
+  where \<open>with_type_class_finite = (\<lambda>F _. finite F, \<lambda>_. (=))\<close>
+
+lemma finite_transfer'[unfolded case_prod_unfold]:
+  fixes r :: \<open>'rep\<Rightarrow>'abs\<Rightarrow>bool\<close>
+  assumes [transfer_rule]: \<open>bi_unique r\<close> \<open>right_total r\<close>
+  shows \<open>(snd with_type_class_finite r ===> (\<longleftrightarrow>)) (fst with_type_class_finite (Collect (Domainp r))) (\<lambda>_::unit. class.finite TYPE('abs))\<close>
+  unfolding class.finite_def with_type_class_finite_def fst_conv
+  by transfer_prover
+
+lemma nice_rel_finite': \<open>nice_rel (fst with_type_class_finite) S (snd with_type_class_finite)\<close>
+  by (auto simp: with_type_class_finite_def nice_rel_def)
+
+setup \<open>
+add_with_type_info_global {
+  class = \<^class>\<open>finite\<close>,
+  rep_class_data = \<^const_name>\<open>with_type_class_finite\<close>,
+  nice_rel = @{thm nice_rel_finite'},
+  rep_class_data_thm = NONE,
+  transfer = SOME @{thm finite_transfer'}
+}
+\<close>
+
+setup \<open>
+add_with_type_info_global {
+  class = \<^class>\<open>semigroup_add\<close>,
+  rep_class_data = \<^const_name>\<open>with_type_class_semigroup_add\<close>,
+  nice_rel = @{thm nice_rel_semigroup_on'},
+  rep_class_data_thm = NONE,
+  transfer = SOME @{thm semigroup_on_transfer'}
+}
+\<close>
+
+setup \<open>
+add_with_type_info_global {
+  class = \<^class>\<open>ring\<close>,
+  rep_class_data = \<^const_name>\<open>with_type_class_ring\<close>,
+  nice_rel = @{thm nice_rel_ring'},
+  rep_class_data_thm = NONE,
+  transfer = SOME @{thm ring_transfer'}
+}
+\<close>
+
 
 section \<open>Semigroup example\<close>
 
@@ -251,12 +370,14 @@ axiomatization
   carrier_nonempty: \<open>carrier \<noteq> {}\<close> and
   carrier_semigroup: \<open>semigroup_on carrier carrier_plus\<close>
 
-lemma example:
+definition "carrier_both = (carrier,carrier_plus)"
+
+lemma example_semigroup:
   includes lifting_syntax
-  shows \<open>with_type2 with_type_class_semigroup_add (carrier,carrier_plus)
+  shows \<open>with_type2 with_type_class_semigroup_add carrier_both
       (\<lambda>Rep (Abs::int \<Rightarrow> 'abs::semigroup_add). undefined (3::nat))\<close>
   apply (rule with_type2I)
-  apply (simp_all add: with_type_class_semigroup_add_def)
+  apply (simp_all add: with_type_class_semigroup_add_def carrier_both_def)
      apply (rule carrier_nonempty)
     apply (rule carrier_semigroup)
    apply (rule nice_rel_semigroup_on)
@@ -276,23 +397,108 @@ proof -
     sorry
 qed
 
+lemma example_type:
+  includes lifting_syntax
+  shows \<open>with_type2 with_type_class_type undefined
+      (\<lambda>Rep (Abs::int \<Rightarrow> 'abs). undefined (3::nat))\<close>
+  sorry
 
+lemma example_ring:
+  includes lifting_syntax
+  shows \<open>with_type2 with_type_class_ring undefined
+      (\<lambda>Rep (Abs::int \<Rightarrow> 'abs::ring). undefined (3::nat))\<close>
+  sorry
+
+
+lemma example_finite:
+  includes lifting_syntax
+  shows \<open>with_type2 with_type_class_finite undefined
+      (\<lambda>Rep (Abs::int \<Rightarrow> 'abs::finite). undefined (3::nat))\<close>
+  sorry
+
+
+ML \<open>
+Unoverload_Type.unoverload_type (Context.Proof \<^context>) [("'a",0)]
+@{lemma \<open>undefined::'a::{field,finite} == undefined\<close> by simp}
+\<close>
+
+term with_type2
+
+ML \<open>
+fun with_type_cancel ctxt thm = let
+
+val (const, abs_type) = case Thm.prop_of thm of
+    \<^Const_>\<open>Trueprop\<close> $ (\<^Const_>\<open>with_type2 _ _ abs _\<close> $ Const(const,_) $ _ $ _) => (const,abs)
+  | t => raise TERM ("with_type_cancel: theorem must be of the form (with_type2 constant ...)", [t])
+
+val abs_type_name = case abs_type of
+  TVar (n,_) => n
+  | _ => raise TYPE ("with_type_cancel: abstract type must be a type variable (?'something)", [abs_type], [Thm.prop_of thm])
+
+val info = get_with_type_info_by_const ctxt const |> the
+
+(* "with_type2 CR ?Sp ?P \<Longrightarrow>
+    \<exists>Rep Abs. type_definition Rep Abs (fst ?Sp) \<Longrightarrow> \<exists>x. class.name x" *)
+(* May be NONE *)
+val with_type2_class_axioms = case #transfer info of SOME transfer => 
+      (@{thm with_type2_class_axioms} OF [transfer, #nice_rel info])
+      |> (Tactic.assume_tac ctxt 1  THEN  Tactic.assume_tac ctxt 1) |> Seq.hd |> SOME
+  | NONE => NONE
+
+(* class.name (\<dots> using ?'abs) \<Longrightarrow> with_type2 CR Sp (\<lambda>_ _. P) *)
+(* class.name part may be absent for some type classes *)
+val unoverloaded = Unoverload_Type.unoverload_type (Context.Proof ctxt) [abs_type_name] thm
+
+(* \<exists>(Rep::?'abs2\<Rightarrow>_) Abs. type_definition Rep Abs (fst Sp) \<Longrightarrow> \<exists>x::?'abs_params2. class.name x *)
+(* May be NONE *)
+val ex_class = Option.map (fn th => th OF [thm]) with_type2_class_axioms
+
+(* \<exists>(Rep::?'abs2\<Rightarrow>_) Abs. type_definition Rep Abs (fst Sp) \<Longrightarrow> class.name (SOME \<dots>) *)
+(* May be NONE *)
+val class_some = Option.map (fn thm => @{thm someI_ex} OF [thm]) ex_class
+
+(* \<exists>(Rep::?'abs\<Rightarrow>_) Abs. type_definition Rep Abs (fst Sp) \<Longrightarrow> with_type2 CR Sp (\<lambda>_ _. P) *)
+val unoverloaded' = case class_some of SOME thm => unoverloaded OF [thm] | NONE => unoverloaded
+
+(* \<exists>(Rep::?'abs\<Rightarrow>_) Abs. type_definition Rep Abs (fst Sp) [TWICE!] \<Longrightarrow> P *)
+val no_with_type2 = @{thm with_type2_prepare_cancel} OF [unoverloaded']
+
+(* \<exists>(Rep::?'abs\<Rightarrow>_) Abs. type_definition Rep Abs (fst Sp) \<Longrightarrow> P *)
+val no_repetition = Tactic.distinct_subgoals_tac no_with_type2 |> Seq.hd
+
+(* fst Sp \<noteq> {} \<Longrightarrow> P *)
+val removed_abs_type = Local_Typedef.cancel_type_definition no_repetition
+
+(* fst Sp \<noteq> {} *)
+val non_empty = @{thm with_type2_nonempty} OF [thm]
+val final_thm = removed_abs_type OF [non_empty]
+in
+final_thm
+end
+\<close>
+
+ML \<open>
+with_type_cancel \<^context> @{thm example_type}
+\<close>
+
+
+(* 
 lemma erasure_example:
   assumes \<open>undefined (4::nat)\<close>
   shows \<open>undefined (3::nat)\<close>
 proof -
-  note * = example
-  note ** = example[THEN with_type2_semigroup_add, THEN someI_ex]
-  note * = *[unoverload_type 'abs]
-  note * = *[OF **]
-  note * = *[THEN with_type2_prepare_cancel]
-  then have *: \<open>\<exists>(Rep::'abs::type \<Rightarrow> int) Abs::int \<Rightarrow> 'abs::type. type_definition Rep Abs (fst (carrier, carrier_plus)) \<Longrightarrow>
+  note * = example_semigroup
+  note ** = example_semigroup[THEN with_type2_semigroup_add, THEN someI_ex]
+  note * = *[unoverload_type 'abs] (* unoverloaded *)
+  note * = *[OF **] (* unoverloaded' *)
+  note * = *[THEN with_type2_prepare_cancel] (* no_with_type2 *)
+  then have *: \<open>\<exists>(Rep::'abs::type \<Rightarrow> int) Abs::int \<Rightarrow> 'abs::type. type_definition Rep Abs (fst carrier_both) \<Longrightarrow>
                 undefined (3::nat)\<close>
-    by metis
-  note * = *[rotated, cancel_type_definition, simplified]
-  note ** = example[THEN with_type2_nonempty]
+    by metis  (* no_repetition *)
+  note * = *[cancel_type_definition] (* removed_abs_type *)
+  note ** = example_semigroup[THEN with_type2_nonempty] 
   note * = *[OF **]
   then show ?thesis by simp
-qed
+qed *)
 
 end
