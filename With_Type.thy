@@ -47,6 +47,11 @@ lemma with_typeI:
   using assms
   by (auto simp add: with_type_def case_prod_beta)
 
+lemma with_type_mp: 
+  assumes \<open>with_type CR (S,p) P\<close>
+  shows \<open>(\<And>Rep Abs. type_definition Rep Abs S \<Longrightarrow> fst CR S p \<Longrightarrow> P Rep Abs \<Longrightarrow> Q Rep Abs) \<Longrightarrow> with_type CR (S,p) Q\<close>
+  using assms by (auto simp add: with_type_def case_prod_beta)
+
 lemma with_type_nonempty: \<open>with_type CR Sp P \<Longrightarrow> fst Sp \<noteq> {}\<close>
   by (simp add: with_type_def case_prod_beta)
 

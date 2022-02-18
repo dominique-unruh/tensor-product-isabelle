@@ -7,7 +7,7 @@ unbundle cblinfun_notation
 definition cweak_operator_topology::"('a::complex_normed_vector \<Rightarrow>\<^sub>C\<^sub>L'b::complex_inner) topology"
   where "cweak_operator_topology = pullback_topology UNIV (\<lambda>a (x,y). cinner x (a *\<^sub>V y)) euclidean"
 
-lemma cweak_operator_topology_topspace:
+lemma cweak_operator_topology_topspace[simp]:
   "topspace cweak_operator_topology = UNIV"
   unfolding cweak_operator_topology_def topspace_pullback_topology topspace_euclidean by auto
 
@@ -353,5 +353,66 @@ proof -
     by simp
 qed
 
+lemma limitin_adj_wot:
+  assumes \<open>limitin cweak_operator_topology f l F\<close>
+  shows \<open>limitin cweak_operator_topology (\<lambda>i. (f i)*) (l*) F\<close>
+proof -
+  from assms
+  have \<open>((\<lambda>i. a \<bullet>\<^sub>C (f i *\<^sub>V b)) \<longlongrightarrow> a \<bullet>\<^sub>C (l *\<^sub>V b)) F\<close> for a b
+    by (simp add: limitin_cweak_operator_topology)
+  then have \<open>((\<lambda>i. cnj (a \<bullet>\<^sub>C (f i *\<^sub>V b))) \<longlongrightarrow> cnj (a \<bullet>\<^sub>C (l *\<^sub>V b))) F\<close> for a b
+    using tendsto_cnj by blast
+  then have \<open>((\<lambda>i. cnj (((f i)* *\<^sub>V a) \<bullet>\<^sub>C b)) \<longlongrightarrow> cnj ((l* *\<^sub>V a) \<bullet>\<^sub>C b)) F\<close> for a b
+    by (simp add: cinner_adj_left)
+  then have \<open>((\<lambda>i. b \<bullet>\<^sub>C ((f i)* *\<^sub>V a)) \<longlongrightarrow> b \<bullet>\<^sub>C (l* *\<^sub>V a)) F\<close> for a b
+    by simp
+  then show ?thesis
+    by (simp add: limitin_cweak_operator_topology)
+qed
+
+lemma hausdorff_cweak_operator_topology[simp]: \<open>hausdorff cweak_operator_topology\<close>
+  sorry
+
+lemma hermitian_limit_hermitian_wot:
+  assumes \<open>F \<noteq> \<bottom>\<close>
+  assumes herm: \<open>\<And>i. (a i)* = a i\<close>
+  assumes lim: \<open>limitin cweak_operator_topology a A F\<close>
+  shows \<open>A* = A\<close>
+  using hausdorff_cweak_operator_topology \<open>F \<noteq> \<bottom>\<close>
+  apply (rule limitin_unique[of cweak_operator_topology])
+  using lim apply (rule limitin_adj_wot)
+  unfolding herm by (fact lim)
+
+lemma wot_weaker_than_sot_openin:
+  \<open>openin cweak_operator_topology x \<Longrightarrow> openin cstrong_operator_topology x\<close>
+  using wot_weaker_than_sot unfolding continuous_map_def by auto
+
+lemma wot_weaker_than_sot_limitin: \<open>limitin cweak_operator_topology a A F\<close> if \<open>limitin cstrong_operator_topology a A F\<close>
+  using that unfolding filterlim_cweak_operator_topology[symmetric] filterlim_cstrong_operator_topology[symmetric]
+  apply (rule filterlim_mono)
+   apply (rule nhdsin_mono)
+  by (auto simp: wot_weaker_than_sot_openin)
+
+(* Logically belongs in Strong_Operator_Topology, but we use hermitian_tendsto_hermitian_wot in the proof. *)
+lemma hermitian_limit_hermitian_sot:
+  assumes \<open>F \<noteq> \<bottom>\<close>
+  assumes \<open>\<And>i. (a i)* = a i\<close>
+  assumes \<open>limitin cstrong_operator_topology a A F\<close>
+  shows \<open>A* = A\<close>
+  using assms(1,2) apply (rule hermitian_limit_hermitian_wot[where a=a and F=F])
+  using assms(3) by (rule wot_weaker_than_sot_limitin)
+
+lemma hermitian_sum_hermitian_sot:
+  assumes herm: \<open>\<And>i. (a i)* = a i\<close>
+  assumes sum: \<open>has_sum_in cstrong_operator_topology a X A\<close>
+  shows \<open>A* = A\<close>
+proof -
+  from herm have herm_sum: \<open>(sum a F)* = sum a F\<close> for F
+    by (simp add: sum_adj)
+  show ?thesis
+    using _ herm_sum sum[unfolded has_sum_in_def]
+    apply (rule hermitian_limit_hermitian_sot)
+    by simp
+qed
 
 end

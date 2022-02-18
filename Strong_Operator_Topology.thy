@@ -353,6 +353,65 @@ proof -
 qed
 
 
+lemma has_sum_in_cstrong_operator_topology:
+  \<open>has_sum_in cstrong_operator_topology f A l \<longleftrightarrow> (\<forall>\<psi>. has_sum (\<lambda>i. f i *\<^sub>V \<psi>) A (l *\<^sub>V \<psi>))\<close>
+  by (simp add: cblinfun.sum_left has_sum_in_def limitin_cstrong_operator_topology has_sum_def)
+
+lemma summable_sot_absI:
+  fixes b :: \<open>'a \<Rightarrow> 'b::complex_normed_vector \<Rightarrow>\<^sub>C\<^sub>L 'c::chilbert_space\<close>
+  assumes \<open>\<And>F f. finite F \<Longrightarrow> (\<Sum>n\<in>F. norm (b n *\<^sub>V f)) \<le> K * norm f\<close>
+  shows \<open>summable_on_in cstrong_operator_topology b UNIV\<close>
+proof -
+  obtain B' where B': \<open>has_sum (\<lambda>n. b n *\<^sub>V f) UNIV (B' f)\<close> for f
+  proof (atomize_elim, intro choice allI)
+    fix f
+    have \<open>(\<lambda>n. b n *\<^sub>V f) abs_summable_on UNIV\<close>
+      apply (rule nonneg_bdd_above_summable_on)
+      using assms by (auto intro!: bdd_aboveI[where M=\<open>K * norm f\<close>])
+    then show \<open>\<exists>l. has_sum (\<lambda>n. b n *\<^sub>V f) UNIV l\<close>
+      by (metis abs_summable_summable summable_on_def)
+  qed
+  have \<open>bounded_clinear B'\<close>
+  proof (intro bounded_clinearI allI)
+    fix x y :: 'b and c :: complex
+    from B'[of x] B'[of y]
+    have \<open>has_sum (\<lambda>n. b n *\<^sub>V x + b n *\<^sub>V y) UNIV (B' x + B' y)\<close>
+      by (simp add: has_sum_add)
+    with B'[of \<open>x + y\<close>]
+    show \<open>B' (x + y) = B' x + B' y\<close>
+      by (metis (no_types, lifting) cblinfun.add_right has_sum_cong infsumI)
+    from B'[of x]
+    have \<open>has_sum (\<lambda>n. c *\<^sub>C (b n *\<^sub>V x)) UNIV (c *\<^sub>C B' x)\<close>
+      by (metis cblinfun_scaleC_right.rep_eq has_sum_cblinfun_apply)
+    with B'[of \<open>c *\<^sub>C x\<close>]
+    show \<open>B' (c *\<^sub>C x) = c *\<^sub>C B' x\<close>
+      by (metis (no_types, lifting) cblinfun.scaleC_right has_sum_cong infsumI)
+    show \<open>norm (B' x) \<le> norm x * K\<close>
+    proof -
+      have *: \<open>(\<lambda>n. b n *\<^sub>V x) abs_summable_on UNIV\<close>
+        apply (rule nonneg_bdd_above_summable_on)
+        using assms by (auto intro!: bdd_aboveI[where M=\<open>K * norm x\<close>])
+      have \<open>norm (B' x) \<le> (\<Sum>\<^sub>\<infinity>n. norm (b n *\<^sub>V x))\<close>
+        using _ B'[of x] apply (rule norm_has_sum_bound)
+        using * summable_iff_has_sum_infsum by blast
+      also have \<open>(\<Sum>\<^sub>\<infinity>n. norm (b n *\<^sub>V x)) \<le> K * norm x\<close>
+        using * apply (rule infsum_le_finite_sums)
+        using assms by simp
+      finally show ?thesis
+        by (simp add: mult.commute)
+    qed
+  qed
+  define B where \<open>B = CBlinfun B'\<close>
+  with \<open>bounded_clinear B'\<close> have BB': \<open>B *\<^sub>V f = B' f\<close> for f
+    by (simp add: bounded_clinear_CBlinfun_apply)
+  have \<open>has_sum_in cstrong_operator_topology b UNIV B\<close>
+    using B' by (simp add: has_sum_in_cstrong_operator_topology BB')
+  then show ?thesis
+    using summable_on_in_def by blast
+qed
+
+declare cstrong_operator_topology_topspace[simp]
+
 unbundle no_cblinfun_notation
 
 

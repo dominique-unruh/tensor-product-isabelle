@@ -722,6 +722,75 @@ proof -
     unfolding 1 filterlim_filtercomap_iff by -
 qed
 
+definition \<open>has_sum_in T f A x \<longleftrightarrow> limitin T (sum f) x (finite_subsets_at_top A)\<close>
+
+definition \<open>summable_on_in T f A \<longleftrightarrow> (\<exists>x. has_sum_in T f A x)\<close>
+
+definition \<open>infsum_in T f A = (if summable_on_in T f A then (THE l. has_sum_in T f A l) else 0)\<close>
+
+definition hausdorff where \<open>hausdorff T \<longleftrightarrow> (\<forall>x \<in> topspace T. \<forall>y \<in> topspace T. x \<noteq> y \<longrightarrow> (\<exists>U V. openin T U \<and> openin T V \<and> x \<in> U \<and> y \<in> V \<and> U \<inter> V = {}))\<close>
+
+lemma limitin_unique:
+  assumes \<open>hausdorff T\<close>
+  assumes \<open>F \<noteq> \<bottom>\<close>
+  assumes lim: \<open>limitin T f l F\<close>
+  assumes lim': \<open>limitin T f l' F\<close>
+  shows \<open>l = l'\<close>
+proof (rule ccontr)
+  assume "l \<noteq> l'"
+  have \<open>l \<in> topspace T\<close> \<open>l' \<in> topspace T\<close>
+    by (meson lim lim' limitin_def)+
+  obtain U V where "openin T U" "openin T V" "l \<in> U" "l' \<in> V" "U \<inter> V = {}"
+    using \<open>hausdorff T\<close> \<open>l \<noteq> l'\<close> unfolding hausdorff_def
+    by (meson \<open>l \<in> topspace T\<close> \<open>l' \<in> topspace T\<close>)
+  have "eventually (\<lambda>x. f x \<in> U) F"
+    using lim \<open>openin T U\<close> \<open>l \<in> U\<close>
+    by (simp add: limitin_def)
+  moreover
+  have "eventually (\<lambda>x. f x \<in> V) F"
+    using lim' \<open>openin T V\<close> \<open>l' \<in> V\<close>
+    by (simp add: limitin_def)
+  ultimately
+  have "eventually (\<lambda>x. False) F"
+  proof eventually_elim
+    case (elim x)
+    then have "f x \<in> U \<inter> V" by simp
+    with \<open>U \<inter> V = {}\<close> show ?case by simp
+  qed
+  with \<open>\<not> trivial_limit F\<close> show "False"
+    by (simp add: trivial_limit_def)
+qed
+
+
+lemma has_sum_in_unique:
+  assumes \<open>hausdorff T\<close>
+  assumes \<open>has_sum_in T f A l\<close>
+  assumes \<open>has_sum_in T f A l'\<close>
+  shows \<open>l = l'\<close>
+  using assms(1) _ assms(2,3)[unfolded has_sum_in_def] 
+  apply (rule limitin_unique)
+  by simp
+
+lemma has_sum_in_infsum_in: 
+  assumes \<open>hausdorff T\<close> and summable: \<open>summable_on_in T f A\<close>
+  shows \<open>has_sum_in T f A (infsum_in T f A)\<close>
+  apply (simp add: infsum_in_def summable)
+  apply (rule theI'[of \<open>has_sum_in T f A\<close>])
+  using has_sum_in_unique[OF \<open>hausdorff T\<close>, of f A] summable
+  by (meson summable_on_in_def)
+
+
+lemma sum_adj: \<open>(sum a F)* = sum (\<lambda>i. (a i)*) F\<close>
+  apply (induction rule:infinite_finite_induct)
+  by (auto simp add: adj_plus)
+
+lemma nhdsin_mono:
+  assumes [simp]: \<open>\<And>x. openin T' x \<Longrightarrow> openin T x\<close>
+  assumes [simp]: \<open>topspace T = topspace T'\<close>
+  shows \<open>nhdsin T a \<le> nhdsin T' a\<close>
+  unfolding nhdsin_def 
+  by (auto intro!: INF_superset_mono)
+
 unbundle no_cblinfun_notation
 
 end

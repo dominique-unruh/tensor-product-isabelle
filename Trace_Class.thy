@@ -1,6 +1,7 @@
 theory Trace_Class
   imports Complex_Bounded_Operators.Complex_L2 Misc_Tensor_Product HS2Ell2
-    "HOL-Cardinals.Cardinals"
+    "HOL-Cardinals.Cardinals" Weak_Operator_Topology
+    "HOL-Computational_Algebra.Formal_Power_Series"
 begin
 
 unbundle cblinfun_notation
@@ -596,6 +597,430 @@ proof -
 qed
 
 definition sqrt_op :: \<open>('a::chilbert_space \<Rightarrow>\<^sub>C\<^sub>L 'a) \<Rightarrow> ('a \<Rightarrow>\<^sub>C\<^sub>L 'a)\<close> where \<open>sqrt_op a = (SOME b. b \<ge> 0 \<and> b* o\<^sub>C\<^sub>L b = a)\<close>
+
+lemma cblinfun_leI:
+  assumes \<open>\<And>x. norm x = 1 \<Longrightarrow> x \<bullet>\<^sub>C (A *\<^sub>V x) \<le> x \<bullet>\<^sub>C (B *\<^sub>V x)\<close>
+  shows \<open>A \<le> B\<close>
+  unfolding less_eq_cblinfun_def using assms 
+  sorry
+
+(* TODO move *)
+lemma cblinfun_compose_minus_right: \<open>a o\<^sub>C\<^sub>L (b - c) = (a o\<^sub>C\<^sub>L b) - (a o\<^sub>C\<^sub>L c)\<close>
+  by (simp add: bounded_cbilinear.diff_right bounded_cbilinear_cblinfun_compose)
+lemma cblinfun_compose_minus_left: \<open>(a - b) o\<^sub>C\<^sub>L c = (a o\<^sub>C\<^sub>L c) - (b o\<^sub>C\<^sub>L c)\<close>
+  by (simp add: bounded_cbilinear.diff_left bounded_cbilinear_cblinfun_compose)
+
+lemma norm_pos_op_mono:
+  fixes A B :: \<open>'a::chilbert_space \<Rightarrow>\<^sub>C\<^sub>L 'a\<close>
+  assumes \<open>0 \<le> A\<close> and \<open>A \<le> B\<close>
+  shows \<open>norm A \<le> norm B\<close>
+  sorry
+
+lemma sum_cinner:
+  fixes f :: "'a \<Rightarrow> 'b::complex_inner"
+  shows "sum f A \<bullet>\<^sub>C sum g B = (\<Sum>i\<in>A. \<Sum>j\<in>B. f i \<bullet>\<^sub>C g j)"
+  by (simp add: cinner_sum_right cinner_sum_left) (rule sum.swap)
+
+(* A copy of Series.Cauchy_product_sums with * replaced by \<bullet>\<^sub>C *)
+lemma Cauchy_cinner_product_sums:
+  fixes a b :: "nat \<Rightarrow> 'a::chilbert_space"
+  assumes a: "summable (\<lambda>k. norm (a k))"
+    and b: "summable (\<lambda>k. norm (b k))"
+  shows "(\<lambda>k. \<Sum>i\<le>k. a i \<bullet>\<^sub>C b (k - i)) sums ((\<Sum>k. a k) \<bullet>\<^sub>C (\<Sum>k. b k))"
+proof -
+  let ?S1 = "\<lambda>n::nat. {..<n} \<times> {..<n}"
+  let ?S2 = "\<lambda>n::nat. {(i,j). i + j < n}"
+  have S1_mono: "\<And>m n. m \<le> n \<Longrightarrow> ?S1 m \<subseteq> ?S1 n" by auto
+  have S2_le_S1: "\<And>n. ?S2 n \<subseteq> ?S1 n" by auto
+  have S1_le_S2: "\<And>n. ?S1 (n div 2) \<subseteq> ?S2 n" by auto
+  have finite_S1: "\<And>n. finite (?S1 n)" by simp
+  with S2_le_S1 have finite_S2: "\<And>n. finite (?S2 n)" by (rule finite_subset)
+
+  let ?g = "\<lambda>(i,j). a i \<bullet>\<^sub>C b j"
+  let ?f = "\<lambda>(i,j). norm (a i) * norm (b j)"
+  have f_nonneg: "\<And>x. 0 \<le> ?f x" by auto
+  then have norm_sum_f: "\<And>A. norm (sum ?f A) = sum ?f A"
+    unfolding real_norm_def
+    by (simp only: abs_of_nonneg sum_nonneg [rule_format])
+
+  have "(\<lambda>n. (\<Sum>k<n. a k) \<bullet>\<^sub>C (\<Sum>k<n. b k)) \<longlonglongrightarrow> (\<Sum>k. a k) \<bullet>\<^sub>C (\<Sum>k. b k)"
+    by (simp add: a b summable_LIMSEQ summable_norm_cancel tendsto_cinner)
+  then have 1: "(\<lambda>n. sum ?g (?S1 n)) \<longlonglongrightarrow> (\<Sum>k. a k) \<bullet>\<^sub>C (\<Sum>k. b k)"
+    by (simp only: sum_cinner sum.Sigma [rule_format] finite_lessThan)
+
+  have "(\<lambda>n. (\<Sum>k<n. norm (a k)) * (\<Sum>k<n. norm (b k))) \<longlonglongrightarrow> (\<Sum>k. norm (a k)) * (\<Sum>k. norm (b k))"
+    using a b by (simp add: summable_LIMSEQ tendsto_mult)
+  then have "(\<lambda>n. sum ?f (?S1 n)) \<longlonglongrightarrow> (\<Sum>k. norm (a k)) * (\<Sum>k. norm (b k))"
+    by (simp only: sum_product sum.Sigma [rule_format] finite_lessThan)
+  then have "convergent (\<lambda>n. sum ?f (?S1 n))"
+    by (rule convergentI)
+  then have Cauchy: "Cauchy (\<lambda>n. sum ?f (?S1 n))"
+    by (rule convergent_Cauchy)
+  have "Zfun (\<lambda>n. sum ?f (?S1 n - ?S2 n)) sequentially"
+  proof (rule ZfunI, simp only: eventually_sequentially norm_sum_f)
+    fix r :: real
+    assume r: "0 < r"
+    from CauchyD [OF Cauchy r] obtain N
+      where "\<forall>m\<ge>N. \<forall>n\<ge>N. norm (sum ?f (?S1 m) - sum ?f (?S1 n)) < r" ..
+    then have "\<And>m n. N \<le> n \<Longrightarrow> n \<le> m \<Longrightarrow> norm (sum ?f (?S1 m - ?S1 n)) < r"
+      by (simp only: sum_diff finite_S1 S1_mono)
+    then have N: "\<And>m n. N \<le> n \<Longrightarrow> n \<le> m \<Longrightarrow> sum ?f (?S1 m - ?S1 n) < r"
+      by (simp only: norm_sum_f)
+    show "\<exists>N. \<forall>n\<ge>N. sum ?f (?S1 n - ?S2 n) < r"
+    proof (intro exI allI impI)
+      fix n
+      assume "2 * N \<le> n"
+      then have n: "N \<le> n div 2" by simp
+      have "sum ?f (?S1 n - ?S2 n) \<le> sum ?f (?S1 n - ?S1 (n div 2))"
+        by (intro sum_mono2 finite_Diff finite_S1 f_nonneg Diff_mono subset_refl S1_le_S2)
+      also have "\<dots> < r"
+        using n div_le_dividend by (rule N)
+      finally show "sum ?f (?S1 n - ?S2 n) < r" .
+    qed
+  qed
+  then have "Zfun (\<lambda>n. sum ?g (?S1 n - ?S2 n)) sequentially"
+    apply (rule Zfun_le [rule_format])
+    apply (simp only: norm_sum_f)
+    apply (rule order_trans [OF norm_sum sum_mono])
+    by (auto simp add: norm_mult_ineq complex_inner_class.Cauchy_Schwarz_ineq2)
+  then have 2: "(\<lambda>n. sum ?g (?S1 n) - sum ?g (?S2 n)) \<longlonglongrightarrow> 0"
+    unfolding tendsto_Zfun_iff diff_0_right
+    by (simp only: sum_diff finite_S1 S2_le_S1)
+  with 1 have "(\<lambda>n. sum ?g (?S2 n)) \<longlonglongrightarrow> (\<Sum>k. a k) \<bullet>\<^sub>C (\<Sum>k. b k)"
+    by (rule Lim_transform2)
+  then show ?thesis
+    by (simp only: sums_def sum.triangle_reindex)
+qed
+
+(* TODO move *)
+lemma abs_gbinomial: \<open>abs (a gchoose n) = (-1)^(n - nat (ceiling a)) * (a gchoose n)\<close>
+proof -
+  have \<open>(\<Prod>i=0..<n. abs (a - of_nat i)) = (- 1) ^ (n - nat (ceiling a)) * (\<Prod>i=0..<n. a - of_nat i)\<close>
+  proof (induction n)
+    case 0
+    then show ?case
+      by simp
+  next
+    case (Suc n)
+(*     then show ?case
+      apply (simp add: Suc) *)
+    consider (geq) \<open>of_int n \<ge> a\<close> | (lt) \<open>of_int n < a\<close>
+      by fastforce
+    then show ?case
+    proof cases
+      case geq
+      from geq have \<open>abs (a - of_int n) = - (a - of_int n)\<close>
+        by simp
+      moreover from geq have \<open>(Suc n - nat (ceiling a)) = (n - nat (ceiling a)) + 1\<close>
+        by (metis Suc_diff_le Suc_eq_plus1 ceiling_le nat_le_iff)
+      ultimately show ?thesis
+        apply (simp add: Suc)
+        by (metis (no_types, lifting) \<open>\<bar>a - of_int (int n)\<bar> = - (a - of_int (int n))\<close> mult.assoc mult_minus_right of_int_of_nat_eq)
+    next
+      case lt
+      from lt have \<open>abs (a - of_int n) = (a - of_int n)\<close>
+        by simp
+      moreover from lt have \<open>(Suc n - nat (ceiling a)) = (n - nat (ceiling a))\<close>
+        by (smt (verit, ccfv_threshold) Suc_leI cancel_comm_monoid_add_class.diff_cancel diff_commute diff_diff_cancel diff_le_self less_ceiling_iff linorder_not_le order_less_le zless_nat_eq_int_zless)
+      ultimately show ?thesis
+        by (simp add: Suc)
+    qed
+  qed
+  then show ?thesis
+    by (simp add: gbinomial_prod_rev abs_prod)
+qed
+
+lemma gbinomial_sum_lower_abs: 
+  fixes a :: \<open>'a::{floor_ceiling}\<close>
+  defines \<open>a' \<equiv> nat (ceiling a)\<close>
+  assumes \<open>of_nat m \<ge> a-1\<close>
+  shows "(\<Sum>k\<le>m. abs (a gchoose k)) = 
+                 (-1)^a' * ((-1) ^ m * (a - 1 gchoose m)) 
+               - (-1)^a' * of_bool (a'>0) * ((-1) ^ (a'-1) * (a-1 gchoose (a'-1)))
+               + (\<Sum>k<a'. abs (a gchoose k))"
+proof -
+  from assms
+  have \<open>a' \<le> Suc m\<close>
+    using ceiling_mono by force
+
+  have \<open>(\<Sum>k\<le>m. abs (a gchoose k)) = (\<Sum>k=a'..m. abs (a gchoose k)) + (\<Sum>k<a'. abs (a gchoose k))\<close>
+    apply (subst asm_rl[of \<open>{..m} = {a'..m} \<union> {..<a'}\<close>])
+    using \<open>a' \<le> Suc m\<close> apply auto[1]
+    apply (subst sum.union_disjoint)
+    by auto
+  also have \<open>\<dots> = (\<Sum>k=a'..m. (-1)^(k-a') * (a gchoose k)) + (\<Sum>k<a'. abs (a gchoose k))\<close>
+    apply (rule arg_cong[where f=\<open>\<lambda>x. x + _\<close>])
+    apply (rule sum.cong[OF refl])
+    apply (subst abs_gbinomial)
+    using a'_def by blast
+  also have \<open>\<dots> = (\<Sum>k=a'..m. (-1)^k * (-1)^a' * (a gchoose k)) + (\<Sum>k<a'. abs (a gchoose k))\<close>
+    apply (rule arg_cong[where f=\<open>\<lambda>x. x + _\<close>])
+    apply (rule sum.cong[OF refl])
+    by (simp add: power_diff_conv_inverse)
+  also have \<open>\<dots> = (-1)^a' * (\<Sum>k=a'..m. (a gchoose k) * (-1)^k) + (\<Sum>k<a'. abs (a gchoose k))\<close>
+    by (auto intro: sum.cong simp: sum_distrib_left)
+  also have \<open>\<dots> = (-1)^a' * (\<Sum>k\<le>m. (a gchoose k) * (-1)^k) - (-1)^a' * (\<Sum>k<a'. (a gchoose k) * (-1)^k) + (\<Sum>k<a'. abs (a gchoose k))\<close>
+    apply (subst asm_rl[of \<open>{..m} = {..<a'} \<union> {a'..m}\<close>])
+    using \<open>a' \<le> Suc m\<close> apply auto[1]
+    apply (subst sum.union_disjoint)
+    by (auto simp: distrib_left)
+  also have \<open>\<dots> = (-1)^a' * ((- 1) ^ m * (a - 1 gchoose m)) - (-1)^a' * (\<Sum>k<a'. (a gchoose k) * (-1)^k) + (\<Sum>k<a'. abs (a gchoose k))\<close>
+    apply (subst gbinomial_sum_lower_neg)
+    by simp
+  also have \<open>\<dots> = (-1)^a' * ((-1) ^ m * (a - 1 gchoose m)) - (-1)^a' 
+               * of_bool (a'>0) * ((-1) ^ (a'-1) * (a-1 gchoose (a'-1)))
+               + (\<Sum>k<a'. abs (a gchoose k))\<close>
+    apply (cases \<open>a' = 0\<close>)
+    apply simp
+    apply (subst asm_rl[of \<open>{..<a'} = {..a'-1}\<close>])
+    apply auto
+    apply (subst gbinomial_sum_lower_neg)
+    by simp
+  finally show ?thesis
+    by -
+qed
+
+lemma abs_gbinomial_leq1:
+  fixes a :: \<open>'a :: {linordered_field}\<close>
+  assumes \<open>-1 \<le> a\<close> and \<open>a \<le> 0\<close>
+  shows \<open>abs (a gchoose b) \<le> 1\<close>
+proof -
+  have \<open>abs (a gchoose b) = abs ((\<Prod>i = 0..<b. a - of_nat i) / fact b)\<close>
+    by (simp add: gbinomial_prod_rev)
+  also have \<open>\<dots> = abs ((\<Prod>i=0..<b. a - of_nat i)) / fact b\<close>
+    apply (subst abs_divide)
+    by simp
+  also have \<open>\<dots> = (\<Prod>i=0..<b. abs (a - of_nat i)) / fact b\<close>
+    apply (subst abs_prod) by simp
+  also have \<open>\<dots> \<le> (\<Prod>i=0..<b. of_nat (Suc i)) / fact b\<close>
+    apply (rule divide_right_mono[rotated])
+     apply simp
+    apply (rule prod_mono)
+    using assms apply (auto simp: abs_if)
+    using order_trans by fastforce
+  also have \<open>\<dots> = fact b / fact b\<close>
+    apply (subst (2) fact_prod_Suc)
+    by auto
+  also have \<open>\<dots> = 1\<close>
+    by simp
+  finally show ?thesis
+    by -
+qed
+
+lemma has_sum_cinner_left:
+  assumes \<open>has_sum f I x\<close>
+  shows \<open>has_sum (\<lambda>i. a \<bullet>\<^sub>C f i) I (a \<bullet>\<^sub>C x)\<close>
+  by (metis assms cblinfun_cinner_right.rep_eq has_sum_cblinfun_apply)
+
+
+lemma infsum_cinner_left:
+  assumes \<open>\<phi> summable_on I\<close>
+  shows \<open>\<psi> \<bullet>\<^sub>C (\<Sum>\<^sub>\<infinity>i\<in>I. \<phi> i) = (\<Sum>\<^sub>\<infinity>i\<in>I. \<psi> \<bullet>\<^sub>C \<phi> i)\<close>
+  by (metis assms has_sum_cinner_left has_sum_infsum infsumI)
+
+lemma has_sum_singleton[simp]: \<open>has_sum f {x} y \<longleftrightarrow> f x = y\<close>
+  sorry
+
+lift_definition cblinfun_power :: \<open>'a::complex_normed_vector \<Rightarrow>\<^sub>C\<^sub>L 'a \<Rightarrow> nat \<Rightarrow> 'a \<Rightarrow>\<^sub>C\<^sub>L 'a\<close> is
+  \<open>\<lambda>(a::'a\<Rightarrow>'a) n. a ^^ n\<close>
+  apply (rename_tac f n, induct_tac n, auto simp: Nat.funpow_code_def)
+  by (simp add: bounded_clinear_compose)
+
+lemma cblinfun_power_0[simp]: \<open>cblinfun_power A 0 = id_cblinfun\<close> 
+  apply transfer by auto
+
+lemma cblinfun_power_Suc': \<open>cblinfun_power A (Suc n) = A o\<^sub>C\<^sub>L cblinfun_power A n\<close> 
+  apply transfer by auto
+
+lemma cblinfun_power_Suc: \<open>cblinfun_power A (Suc n) = cblinfun_power A n o\<^sub>C\<^sub>L A\<close>
+  apply (induction n)
+  by (auto simp: cblinfun_power_Suc' simp flip:  cblinfun_compose_assoc)
+
+lemma cinner_pos_if_pos: \<open>f \<bullet>\<^sub>C (A *\<^sub>V f) \<ge> 0\<close> if \<open>A \<ge> 0\<close>
+  by auto
+
+(* Proof follows https://link.springer.com/article/10.1007%2FBF01448052 *)
+lemma TODO_name:
+  assumes \<open>A = A*\<close>
+  shows \<open>\<exists>E. is_Proj E \<and> (\<forall>F. A o\<^sub>C\<^sub>L F = F o\<^sub>C\<^sub>L A \<longrightarrow> A o\<^sub>C\<^sub>L E = E o\<^sub>C\<^sub>L A) 
+      \<and> A o\<^sub>C\<^sub>L E \<ge> 0 \<and> A o\<^sub>C\<^sub>L (id_cblinfun - E) \<le> 0 
+      \<and> (\<forall>f. A *\<^sub>V f = 0 \<longrightarrow> E *\<^sub>V f = f)\<close>
+proof -
+  have hilfssatz:
+    \<open>\<exists>P. is_Proj P \<and> (\<forall>F. F o\<^sub>C\<^sub>L (W - T) = (W - T) o\<^sub>C\<^sub>L F \<longrightarrow> F o\<^sub>C\<^sub>L P = P o\<^sub>C\<^sub>L F)
+       \<and> (\<forall>f. W f = 0 \<longrightarrow> P f = f)
+       \<and> (W = (2 *\<^sub>C P - id_cblinfun) o\<^sub>C\<^sub>L T)\<close>
+    if \<open>W o\<^sub>C\<^sub>L T = T o\<^sub>C\<^sub>L W\<close> and \<open>W = W*\<close> and \<open>T = T*\<close> and \<open>W o\<^sub>C\<^sub>L W = T o\<^sub>C\<^sub>L T\<close>
+    for W T :: \<open>'a \<Rightarrow>\<^sub>C\<^sub>L 'a\<close>
+    sorry
+
+  define k S where \<open>k = norm A\<close> and \<open>S = (A o\<^sub>C\<^sub>L A) /\<^sub>R k\<^sup>2 - id_cblinfun\<close>
+  have \<open>S \<le> 0\<close>
+  proof (rule cblinfun_leI, simp)
+    fix x :: 'a assume [simp]: \<open>norm x = 1\<close>
+    show \<open>x \<bullet>\<^sub>C (S *\<^sub>V x) \<le> 0\<close>
+      apply (auto simp: S_def cinner_diff_right cblinfun.diff_left scaleR_scaleC cdot_square_norm k_def complex_of_real_mono_iff[where y=1, simplified]
+          simp flip: cinner_adj_left[where x=x] assms of_real_inverse of_real_power of_real_mult power_mult_distrib power_inverse
+          intro!: power_le_one)
+      by (metis \<open>norm x = 1\<close> inverse_nonzero_iff_nonzero left_inverse linordered_field_class.inverse_nonnegative_iff_nonnegative mult_cancel_left1 mult_left_mono norm_cblinfun norm_ge_zero)
+  qed
+  have \<open>- id_cblinfun \<le> S\<close>
+    by (auto intro!: cblinfun_leI simp: S_def scaleR_scaleC cdot_square_norm k_def power2_eq_square
+        simp flip: cinner_adj_left[where y=\<open>_ *\<^sub>V _\<close>] assms)
+  with \<open>S \<le> 0\<close> have \<open>norm S \<le> 1\<close>
+    using norm_pos_op_mono
+    by (metis (no_types, opaque_lifting) Complex_Bounded_Linear_Function0.norm_blinfun_id_le dual_order.trans minus_le_iff neg_0_le_iff_le norm_minus_cancel)
+  then have \<open>norm (S *\<^sub>V f) \<le> norm f\<close> for f
+    by (meson dual_order.trans mult_left_le_one_le norm_cblinfun norm_ge_zero)
+  then have norm_Snf: \<open>norm (cblinfun_power S n *\<^sub>V f) \<le> norm f\<close> for f n
+    by (induction n, auto simp: cblinfun_power_Suc' intro: order.trans)
+  then have fSnf: \<open>f \<bullet>\<^sub>C (cblinfun_power S n *\<^sub>V f) \<le> f \<bullet>\<^sub>C f\<close> for f n
+    (* TODO: can we add a cmod on the rhs? then we can use Cauchy_Schwarz_ineq2 a little more directly.
+       Check how it is used below. *)
+    sorry
+(*   then have Sn_herm: \<open>(pow S n)* = pow S n\<close> for n
+    apply (rule_tac cinner_real_hermiteanI[symmetric])
+    apply auto
+    by - *)
+  define b where \<open>b = (\<lambda>n. (1/2 gchoose n) *\<^sub>R cblinfun_power S n)\<close>
+  define B0 B where \<open>B0 = infsum_in cstrong_operator_topology b UNIV\<close> and \<open>B = norm A *\<^sub>R B0\<close>
+  have \<open>summable_on_in cstrong_operator_topology b UNIV\<close>    
+  proof (rule summable_sot_absI)
+    have [simp]: \<open>\<lceil>1 / 2 :: real\<rceil> = 1\<close>
+      by (simp add: ceiling_eq_iff)
+    fix F :: \<open>nat set\<close> and f :: \<open>'a\<close> assume \<open>finite F\<close>
+    then obtain d where \<open>F \<subseteq> {..d}\<close> and [simp]: \<open>d > 0\<close>
+      by (metis Icc_subset_Iic_iff atLeast0AtMost bot_nat_0.extremum bot_nat_0.not_eq_extremum dual_order.trans finite_nat_iff_bounded_le less_one)
+    show \<open>(\<Sum>n\<in>F. norm (b n *\<^sub>V f)) \<le> 3 * norm f\<close> (is \<open>?lhs \<le> ?rhs\<close>)
+    proof -
+      have \<open>?lhs = (\<Sum>n\<in>F. norm ((1 / 2 gchoose n) *\<^sub>R (cblinfun_power S n *\<^sub>V f)))\<close>
+        by (simp add: b_def scaleR_cblinfun.rep_eq)
+      also have \<open>\<dots> \<le> (\<Sum>n\<in>F. norm ((1 / 2 gchoose n) *\<^sub>R f))\<close>
+        by (simp add: mult_left_mono norm_Snf sum_mono)
+      also have \<open>\<dots> = (\<Sum>n\<in>F. abs (1/2 gchoose n)) * norm f\<close>
+        by (simp add: vector_space_over_itself.scale_sum_left)
+      also have \<open>\<dots> \<le> (\<Sum>n\<le>d. abs (1/2 gchoose n)) * norm f\<close>
+        using \<open>F \<subseteq> {..d}\<close> by (auto intro!: mult_right_mono sum_mono2)
+      also have \<open>\<dots> = (2 - (- 1) ^ d * (- (1 / 2) gchoose d)) * norm f\<close>
+        apply (subst gbinomial_sum_lower_abs)
+        by auto
+      also have \<open>\<dots> \<le> (2 + norm (- (1/2) gchoose d :: real)) * norm f\<close>
+        apply (auto intro!: mult_right_mono)
+        by (smt (verit) left_minus_one_mult_self mult.assoc mult_minus_left power2_eq_iff power2_eq_square)
+      also have \<open>\<dots> \<le> 3 * norm f\<close>
+        apply (subgoal_tac \<open>abs (- (1/2) gchoose d :: real) \<le> 1\<close>)
+        apply (metis add_le_cancel_left is_num_normalize(1) mult.commute mult_left_mono norm_ge_zero numeral_Bit0 numeral_Bit1 one_add_one real_norm_def)
+        apply (rule abs_gbinomial_leq1)
+        by auto
+      finally show ?thesis
+        by -
+    qed
+  qed
+  then have has_sum_b: \<open>has_sum_in cstrong_operator_topology b UNIV B0\<close>
+    by auto
+(*   then have \<open>has_sum_in cstrong_operator_topology b UNIV B0\<close>
+    by -
+  then have \<open>B0* = B0\<close>
+    apply (rule hermitian_sum_hermitian_sot[rotated])
+    by auto
+  then have \<open>B = B*\<close>
+    apply (rule hermitian_limit_hermitian_sot[symmetric])
+    sorry *)
+  have \<open>B0 \<ge> 0\<close>
+  proof (rule positive_cblinfunI)
+    fix f
+    from has_sum_b
+    have sum1: \<open>(\<lambda>n. f \<bullet>\<^sub>C (b n *\<^sub>V f)) summable_on UNIV\<close>
+      using has_sum_cinner_left has_sum_in_cstrong_operator_topology summable_on_def by blast
+    then have sum2: \<open>(\<lambda>n. f \<bullet>\<^sub>C (b n *\<^sub>V f)) summable_on UNIV - {0}\<close>
+      by auto
+    have sum3: \<open>(\<lambda>n. f \<bullet>\<^sub>C \<bar>1 / 2 gchoose n\<bar> *\<^sub>R f) summable_on UNIV - {0}\<close>
+      by auto
+    have sum4: \<open>(\<lambda>n. f \<bullet>\<^sub>C ((1 / 2 gchoose n) *\<^sub>R cblinfun_power S n *\<^sub>V f)) summable_on UNIV - {0}\<close>
+      using b_def sum2 by force
+
+    from has_sum_b
+    have \<open>f \<bullet>\<^sub>C (B0 *\<^sub>V f) = (\<Sum>\<^sub>\<infinity>n. f \<bullet>\<^sub>C (b n *\<^sub>V f))\<close>
+      by (metis has_sum_cinner_left has_sum_in_cstrong_operator_topology infsumI)
+    also have \<open>\<dots> = (\<Sum>\<^sub>\<infinity>n\<in>UNIV-{0}. f \<bullet>\<^sub>C (b n *\<^sub>V f)) + f \<bullet>\<^sub>C (b 0 *\<^sub>V f)\<close>
+      apply (subst infsum_Diff)
+      using sum1 by auto
+    also have \<open>\<dots> = f \<bullet>\<^sub>C (b 0 *\<^sub>V f) + (\<Sum>\<^sub>\<infinity>n\<in>UNIV-{0}. f \<bullet>\<^sub>C ((1/2 gchoose n) *\<^sub>R cblinfun_power S n *\<^sub>V f))\<close>
+      unfolding b_def by simp
+
+(* TODO see paper. Note: S is negative *)
+
+(*     also have \<open>\<dots> \<ge> f \<bullet>\<^sub>C (b 0 *\<^sub>V f) + (\<Sum>\<^sub>\<infinity>n\<in>UNIV-{0}. f \<bullet>\<^sub>C (- abs (1/2 gchoose n) *\<^sub>R cblinfun_power S n *\<^sub>V f))\<close> (is \<open>_ \<ge> \<dots>\<close>)
+      apply (simp flip: add: scaleR_scaleC del: of_real_minus)
+      apply (rule infsum_mono_complex)
+      subgoal sorry
+      subgoal sorry
+      apply (auto intro!: mult_right_mono complex_of_real_mono simp del: of_real_minus)
+      apply auto
+       apply (rule complex_of_real_mono)
+      apply auto
+    proof -
+      fix x
+      show \<open>- (complex_of_real \<bar>1 / 2 gchoose x\<bar> * (f \<bullet>\<^sub>C f))
+         \<le> complex_of_real (1 / 2 gchoose x) * (f \<bullet>\<^sub>C (cblinfun_power S x *\<^sub>V f))\<close>
+        by -
+    qed *)
+    also have \<open>\<dots> \<ge> (\<Sum>n. (1/2 gchoose n) * (f \<bullet>\<^sub>C f)) + (f \<bullet>\<^sub>C f)\<close> (is \<open>_ \<ge> \<dots>\<close>)
+      sorry
+    also have \<open>\<dots> = 0\<close>
+      sorry
+    finally show \<open>f \<bullet>\<^sub>C (B *\<^sub>V f) \<ge> 0\<close>
+      by simp
+  qed
+  then have \<open>B \<ge> 0\<close>
+    by -
+  then have \<open>B = B*\<close> (* If B\<ge>0 need hermitian in the proof, uncomment the proof sketch of B=B* above *)
+    by (simp add: positive_hermitianI)
+  have \<open>B o\<^sub>C\<^sub>L B = (norm A)\<^sup>2 *\<^sub>C (id_cblinfun + S)\<close>
+(* For S being a scalar, shown in q.s. p16.
+Here, sandwich B^2 in f's, and then 
+Use Cauchy_cinner_product_sums 
+ *)
+    sorry
+  also have \<open>\<dots> = A o\<^sub>C\<^sub>L A\<close>
+    by (metis (no_types, lifting) k_def S_def add.commute assms cancel_comm_monoid_add_class.diff_cancel diff_add_cancel norm_AAadj norm_eq_zero of_real_1 of_real_mult right_inverse scaleC_diff_right scaleC_one scaleC_scaleC scaleR_scaleC)
+  finally have B2A2: \<open>B o\<^sub>C\<^sub>L B = A o\<^sub>C\<^sub>L A\<close>
+    by -
+  have \<open>B o\<^sub>C\<^sub>L F = F o\<^sub>C\<^sub>L B\<close> if \<open>A o\<^sub>C\<^sub>L F = F o\<^sub>C\<^sub>L A\<close> for F
+  proof -
+    have \<open>S o\<^sub>C\<^sub>L F = F o\<^sub>C\<^sub>L S\<close>
+      sorry
+    then show ?thesis
+      sorry
+  qed
+(* Up to here we could package in separate lemma for existence of pos sqrt, plus the prop that B commutes with anything that A commutes with *)
+  then have \<open>B o\<^sub>C\<^sub>L A = A o\<^sub>C\<^sub>L B\<close>
+    by blast
+  then obtain E where \<open>is_Proj E\<close>
+    and 1: \<open>A o\<^sub>C\<^sub>L F = F o\<^sub>C\<^sub>L A \<Longrightarrow> A o\<^sub>C\<^sub>L E = E o\<^sub>C\<^sub>L A\<close> 
+    and 3: \<open>A *\<^sub>V f = 0 \<Longrightarrow> E *\<^sub>V f = f\<close>
+    and A2EB: \<open>A = (2 *\<^sub>C E - id_cblinfun) o\<^sub>C\<^sub>L B\<close>
+  for F f
+    apply atomize_elim
+    using hilfssatz[where W=A and T=B]
+    by (metis B2A2 \<open>B = B*\<close> assms cblinfun_compose_minus_left cblinfun_compose_minus_right)
+  then have AE_BE: \<open>A o\<^sub>C\<^sub>L E = B o\<^sub>C\<^sub>L E\<close>
+    by (smt (verit, ccfv_SIG) \<open>B = B*\<close> \<open>is_Proj E\<close> add_right_imp_eq adj_cblinfun_compose adj_plus assms cblinfun_compose_add_left cblinfun_compose_assoc cblinfun_compose_id_right diff_add_cancel id_cblinfun_adjoint is_Proj_algebraic scaleC_2)
+  then have AmE_BmE: \<open>- A o\<^sub>C\<^sub>L (id_cblinfun - E) = B o\<^sub>C\<^sub>L (id_cblinfun - E)\<close>
+    apply (simp add: cblinfun_compose_minus_right)
+    by (smt (z3) A2EB \<open>B = B*\<close> \<open>is_Proj E\<close> add_diff_cancel_left' adj_cblinfun_compose adj_plus adj_uminus arith_special(3) assms cblinfun_compose_id_right cblinfun_compose_minus_right complex_vector.vector_space_assms(4) diff_0 diff_add_cancel diff_diff_eq2 id_cblinfun_adjoint is_Proj_algebraic pth_2 scaleC_left.add)
+  from AE_BE have Apos: \<open>A o\<^sub>C\<^sub>L E \<ge> 0\<close>
+    by (smt (verit, ccfv_threshold) 1 \<open>0 \<le> B\<close> \<open>is_Proj E\<close> cblinfun.zero_left cblinfun_apply_cblinfun_compose cinner_adj_right cinner_zero_right is_Proj_algebraic less_eq_cblinfun_def)
+  have "1'": \<open>- A o\<^sub>C\<^sub>L F = F o\<^sub>C\<^sub>L - A \<Longrightarrow> - A o\<^sub>C\<^sub>L (id_cblinfun - E) = (id_cblinfun - E) o\<^sub>C\<^sub>L - A\<close> and \<open>is_Proj (id_cblinfun - E)\<close> for F
+    apply (metis (no_types, opaque_lifting) "1" cblinfun_compose_id_left cblinfun_compose_id_right cblinfun_compose_minus_left cblinfun_compose_minus_right cblinfun_compose_scaleC_left cblinfun_compose_scaleC_right scaleC_minus1_left)
+    using \<open>is_Proj E\<close> is_Proj_complement by blast
+  from AmE_BmE have \<open>- A o\<^sub>C\<^sub>L (id_cblinfun - E) \<ge> 0\<close>
+    by (smt (verit, ccfv_threshold) "1'" \<open>0 \<le> B\<close> \<open>is_Proj (id_cblinfun - E)\<close> cblinfun.zero_left cblinfun_apply_cblinfun_compose cinner_adj_right cinner_zero_right is_Proj_algebraic less_eq_cblinfun_def)
+  then have Aneg: \<open>A o\<^sub>C\<^sub>L (id_cblinfun - E) \<le> 0\<close>
+    by (metis cblinfun_compose_scaleC_left neg_0_le_iff_le scaleC_minus1_left)
+  from Apos Aneg 1 3 \<open>is_Proj E\<close> show ?thesis
+    by auto
+qed
 
 lemma 
   assumes \<open>a \<ge> 0\<close>
